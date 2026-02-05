@@ -1,0 +1,101 @@
+🧾 Research Participation and Data Collection Statement / 研究参与与数据收集说明
+1. Project Overview / 项目简介
+
+English:
+This study is part of an academic research project titled “Risk-Based Authentication via Browser Fingerprinting”, conducted by the Laboratory of Information Security and Trusted Computing, Beihang University, under the supervision of Professor WU Shujiang.
+The objective of this project is to explore the mechanisms, accuracy, and privacy implications of browser fingerprinting technologies in user authentication systems. The collected data will be used solely for academic research, analysis, and publication purposes, including submission to leading international security conferences such as the IEEE Symposium on Security and Privacy (IEEE S&P).
+
+中文：
+本研究由北京航空航天大学计算机学院巫蜀江教授组织开展，研究课题为《基于浏览器指纹的风险自适应用户认证机制研究》。
+研究目标是探索浏览器指纹在用户认证系统中的特征识别机制、稳定性分析及隐私安全性影响。所有数据仅用于科研分析和学术发表，包括但不限于向IEEE S&P 国际顶级安全会议投稿。
+
+2. Purpose and Scope of Data Collection / 数据收集目的与范围
+
+English:
+Our experimental system may automatically collect certain browser- and device-related data to support research analysis. The data collected may include, but is not limited to:
+
+Browser and system information (e.g., User-Agent, browser version, platform, language preferences)
+
+Device display configuration (e.g., screen resolution, pixel ratio, color depth)
+
+Time zone and system locale
+
+Browser feature availability and capability detection results
+
+Fingerprints derived from web APIs such as Canvas, WebGL, and AudioContext
+
+Interaction metadata (e.g., timing, behavioral variance) necessary for evaluating authentication robustness
+
+All collected information is restricted to the minimal set required for scientific analysis. No personal identifiers (e.g., name, email, or IP address) are deliberately collected or linked to fingerprint data.
+
+中文：
+为支持学术分析，本实验系统可能会自动收集部分与浏览器及设备环境相关的信息，收集内容包括但不限于：
+
+浏览器与系统信息（如 User-Agent、浏览器版本、操作系统、语言设置）；
+
+设备显示参数（如分辨率、像素比、色彩深度等）；
+
+时区与地区设置；
+
+浏览器特性检测与功能支持情况；
+
+基于 Canvas、WebGL、AudioContext 等 Web 接口提取的指纹特征；
+
+研究所需的交互元数据（如时间差异、行为模式等）。
+
+数据收集范围仅限于实现科研分析所必需的最小集合，不会收集或关联个人身份信息（如姓名、邮箱、IP 地址等）。
+
+3. Data Storage and Security / 数据存储与安全
+
+English:
+All data will be stored on secure servers managed by Beihang University, accessible only to authorized members of the research team.
+Collected data will be anonymized and used solely for aggregated statistical analysis, model evaluation, and security assessment.
+Access control, encryption, and audit mechanisms are implemented to prevent unauthorized disclosure.
+Data will be retained only for the duration necessary to complete this research and will be permanently deleted afterward.
+
+中文：
+所有数据均存储于北京航空航天大学内部安全服务器，仅研究团队授权成员可访问。
+采集的数据将经过匿名化处理，仅用于聚合统计分析、模型性能评估及安全性研究。
+系统已实施访问控制、加密与审计机制，以防止数据泄露。
+数据仅在科研项目开展期间保存，项目结束后将全部清除。
+
+4. Voluntary Participation and Consent / 自愿参与与知情同意
+
+English:
+Participation in this research is entirely voluntary. You may choose to “Agree” or “Decline” prior to any data collection.
+Refusal will not affect your ability to access other non-experimental resources.
+By clicking “Agree,” you provide consent for anonymized browser fingerprint data to be collected and analyzed solely for academic research purposes as described above.
+You may withdraw your participation at any time by contacting the research team.
+
+中文：
+本研究完全基于自愿参与原则。在数据收集前，您可选择“同意”或“拒绝”。
+拒绝参与不会影响您访问非实验性内容的权限。
+若选择“同意”，即表示您已知悉并同意研究团队按照上述说明收集和分析匿名化浏览器指纹数据，仅用于学术研究。
+您可随时通过邮件联系研究团队撤回参与。
+
+5. Contact Information / 联系方式
+
+English:
+For inquiries, data access requests, or withdrawal of consent, please contact:
+📧 23373306@buaa.edu.cn
+
+Laboratory of Information Security and Trusted Computing, Beihang University, Beijing, China.
+
+中文：
+如对本研究有任何疑问、希望获取数据使用信息或撤回同意，请联系研究团队：
+📧 23373306@buaa.edu.cn
+
+北京航空航天大学 信息安全与可信计算实验室（中国·北京）
+
+6. Ethical Statement / 伦理与合规声明
+
+English:
+This research complies with Beihang University’s institutional research ethics requirements and adheres to international academic standards concerning privacy and data protection.
+All experimental procedures are designed to ensure participant transparency, minimal risk, and full respect for data confidentiality.
+
+中文：
+本研究严格遵守北京航空航天大学科研伦理审查要求，并符合国际学术界关于隐私与数据保护的规范。
+所有实验流程均确保参与者的知情权、风险最小化与数据保密性。
+
+✅ You may now choose to “Agree” or “Decline” to participate in this study.
+✅ 您现在可以选择“同意”或“拒绝”参与本次研究。

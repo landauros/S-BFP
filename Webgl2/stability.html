@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WebGL Demo</title>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
+      integrity="sha512-zhHQR0/H5SEBL3Wn6yYSaTTZej12z0hVZKOv3TwCUXT1z5qeqGcXJLLrbERYRScEDDpYIJhPC1fk31gqR783iQ=="
+      crossorigin="anonymous"
+      defer
+    ></script>
+
+    <style>
+      .container {
+        display: flex;
+        gap: 10px; /* space between items */
+      }
+
+      .horizontal {
+        flex-direction: row; /* default */
+      }
+
+      .vertical {
+        flex-direction: column;
+      }
+
+      #results {
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        padding: 12px;
+        font-family: monospace;
+      }
+
+      .results-entry {
+        margin: 4px 0;
+        padding: 4px 6px;
+        border-radius: 4px;
+        background: #f4f4f4;
+      }
+
+      .results-entry.stable {
+        background: #e0f7e9;
+      }
+
+      .results-entry.unstable {
+        background: #fdecea;
+      }
+
+    </style>
+  </head>
+
+  <body>
+    <div class="container vertical">
+      <div class="container horizontal">
+        <canvas
+          id="hash"
+          width="1010"
+          height="50"
+          style="border: 1px solid #000000"
+        ></canvas>
+      </div>
+      <div class="container horizontal">
+        <div>
+          <canvas
+            id="Canvas"
+            width="512"
+            height="512"
+            style="border: 1px solid #000000"
+          ></canvas>
+        </div>
+      </div>
+      <div
+        id="results"
+        style="overflow-y: scroll; width: 1010px; max-height: 500px"
+      ></div>
+    </div>
+    <script id="vertex-shader" type="x-shader/x-vertex">
+      attribute vec2 aPos; // Position of the point
+      attribute vec4 aColor; // Color of the point
+      uniform mat4 uProject; // Translation vector
+      varying vec4 vColor; // Color of the point
+      void main() {
+          gl_Position = vec4(aPos, 0.0, 1.0); // Set position in clip space
+          gl_Position = uProject * gl_Position; // Apply translation
+          vColor = aColor; // Pass color to fragment shader
+      }
+    </script>
+    <script id="fragment-shader" type="x-shader/x-fragment">
+      precision highp float;
+      varying vec4 vColor; // Color passed from vertex shader
+      void main() {
+          gl_FragColor = vColor; // Output the color
+      }
+    </script>
+    
+<script type="module">
+  import { getSeedString } from "./preliminary_fingerprint.js";
+
+  const TRIANGLE_COUNT = 8;
+  const TEST_RUNS = 10;
+
+  const canvas = document.getElementById("Canvas");
+  const hashCanvas = document.getElementById("hash");
+  const hashCtx = hashCanvas.getContext("2d");
+  const resultsContainer = document.getElementById("results");
+  const currentUser = localStorage.getItem("currentUser");
+  const gl = canvas.getContext("webgl");
+  const pathWithoutTrailingSlash = window.location.pathname.replace(/\/$/, "");
+  const serviceBasePath = pathWithoutTrailingSlash || "/webgl";
+  const usingRoutes2 = serviceBasePath.startsWith("/webgl2");
+  const stabilityEndpoint = usingRoutes2
+    ? "/user/triangle2_stability"
+    : "/user/triangle_stability";
+  const testVariant = usingRoutes2 ? "webgl2" : "webgl";
+  if (!gl) {
+    resultsContainer.textContent = "WebGL not supported in this browser.";
+    throw new Error("WebGL not supported in this browser.");
+  }
+
+  const parentOrigin = window.location.origin;
+  function notifyParent(type, payload = {}) {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ source: testVariant, type, payload }, parentOrigin);
+    }
+  }
+
+  const vertexSource = document.getElementById("vertex-shader").innerText;
+  const fragmentSource = document.getElementById("fragment-shader").innerText;
+
+  function compileShader(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      const info = gl.getShaderInfoLog(shader);
+      gl.deleteShader(shader);
+      throw new Error(`Shader compile error: ${info}`);
+    }
+    return shader;
+  }
+
+  const vertexShader = compileShader(gl.VERTEX_SHADER, vertexSource);
+  const fragmentShader = compileShader(gl.FRAGMENT_SHADER, fragmentSource);
+
+  const shaderProgram = gl.createProgram();
+  gl.attachShader(shaderProgram, vertexShader);
+  gl.attachShader(shaderProgram, fragmentShader);
+  gl.linkProgram(shaderProgram);
+  if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(shaderProgram);
+    throw new Error(`Program link error: ${info}`);
+  }
+  gl.useProgram(shaderProgram);
+
+  const maxWidth = gl.canvas.width;
+  const maxHeight = gl.canvas.height;
+
+  const seed = await getSeedString();
+  console.log("Using seed:", seed);
+
+  function renderHash(hash) {
+    hashCtx.clearRect(0, 0, hashCanvas.width, hashCanvas.height);
+    hashCtx.fillStyle = "#000";
+    hashCtx.font = "20px Arial";
+    hashCtx.fillText(hash, 10, 30);
+  }
+
+  function appendResult(iteration, hash, matchesBaseline) {
+    const entry = document.createElement("div");
+    entry.className = `results-entry ${matchesBaseline ? "stable" : "unstable"}`;
+    entry.textContent = `Run ${iteration}: ${hash} ${matchesBaseline ? "(stable)" : "(changed)"}`;
+    resultsContainer.appendChild(entry);
+  }
+
+  function appendSummary(allStable, uniqueHashes) {
+    const summary = document.createElement("div");
+    summary.className = "results-entry";
+    summary.textContent = allStable
+      ? `All runs produced the same hash (${uniqueHashes[0]}).`
+      : `Hashes differed. Unique hashes: ${uniqueHashes.join(", ")}.`;
+    resultsContainer.appendChild(summary);
+  }
+
+  function displayError(message) {
+    const entry = document.createElement("div");
+    entry.className = "results-entry unstable";
+    entry.textContent = message;
+    resultsContainer.appendChild(entry);
+  }
+
+  async function persistTriangleStability(allStable, hashes, baseline, uniqueHashes) {
+    if (!currentUser) {
+      const message = "No signed-in user detected; unable to save the stability record.";
+      displayError(message);
+      return { success: false, message };
+    }
+
+    const runs = hashes.map((hash, index) => ({
+      iteration: index + 1,
+      hash,
+      matchesBaseline: hash === baseline,
+    }));
+
+    try {
+      const response = await fetch(stabilityEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: currentUser,
+          seed,
+          baselineHash: baseline,
+          allStable,
+          uniqueHashes,
+          testRuns: runs,
+          timestamp: new Date().toISOString(),
+          testVariant,
+        }),
+      });
+
+      const raw = await response.text();
+      let payload = null;
+      try {
+        payload = raw ? JSON.parse(raw) : null;
+      } catch (parseError) {
+        // ignore parsing error; payload stays null
+      }
+
+      if (!response.ok || (payload && payload.status === "error")) {
+        const errorMessage =
+          (payload && payload.error) || raw || response.statusText || "Unknown error";
+        throw new Error(errorMessage);
+      }
+
+      return { success: true, result: payload };
+    } catch (error) {
+      const message = `Failed to save stability record: ${error.message}`;
+      displayError(message);
+      return { success: false, message };
+    }
+  }
+
+  function createVerticesFromTriangles(triangleList) {
+    const vertexArray = [];
+    const colors = [
+      [1.0, 0.0, 0.0, 1.0],
+      [0.0, 1.0, 0.0, 1.0],
+      [0.0, 0.0, 1.0, 1.0],
+    ];
+
+    for (let i = 0; i < triangleList.length; i++) {
+      const triangle = triangleList[i];
+      if (!Array.isArray(triangle) || triangle.length !== 6) {
+        continue;
+      }
+      const roundedTriangle = triangle.map((value) =>
+        Math.round(value * 1000) / 1000
+      );
+      vertexArray.push(
+        roundedTriangle[0],
+        roundedTriangle[1],
+        ...colors[0],
+        roundedTriangle[2],
+        roundedTriangle[3],
+        ...colors[1],
+        roundedTriangle[4],
+        roundedTriangle[5],
+        ...colors[2]
+      );
+    }
+
+    return new Float32Array(vertexArray);
+  }
+
+  function drawScene(vertices) {
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    const positionLocation = gl.getAttribLocation(shaderProgram, "aPos");
+    const colorLocation = gl.getAttribLocation(shaderProgram, "aColor");
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    gl.vertexAttribPointer(
+      positionLocation,
+      2,
+      gl.FLOAT,
+      false,
+      6 * Float32Array.BYTES_PER_ELEMENT,
+      0
+    );
+    gl.enableVertexAttribArray(positionLocation);
+
+    gl.vertexAttribPointer(
+      colorLocation,
+      4,
+      gl.FLOAT,
+      false,
+      6 * Float32Array.BYTES_PER_ELEMENT,
+      2 * Float32Array.BYTES_PER_ELEMENT
+    );
+    gl.enableVertexAttribArray(colorLocation);
+
+    const projectLocation = gl.getUniformLocation(shaderProgram, "uProject");
+    const projectionMatrix = mat4.create();
+    mat4.rotate(projectionMatrix, projectionMatrix, Math.PI, [1, 0, 0]);
+    mat4.translate(projectionMatrix, projectionMatrix, [-1, -1, 0]);
+    mat4.scale(projectionMatrix, projectionMatrix, [
+      2 / gl.canvas.clientWidth,
+      2 / gl.canvas.clientHeight,
+      1,
+    ]);
+    mat4.translate(projectionMatrix, projectionMatrix, [0.5, 0.5, 0]);
+
+    gl.uniformMatrix4fv(projectLocation, false, projectionMatrix);
+
+    gl.clearColor(0.0, 0.0, 0.0, 0.0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / 6);
+  }
+
+  async function loadTriangles() {
+    const response = await fetch(
+      `${serviceBasePath}/get_triangles/${TRIANGLE_COUNT}/${seed}/${maxWidth}/${maxHeight}`
+    );
+    if (!response.ok) {
+      throw new Error(`Triangle generation failed: ${response.statusText}`);
+    }
+    const data = await response.json();
+    if (!data || !Array.isArray(data.triangle)) {
+      throw new Error("Triangle data is missing in server response.");
+    }
+
+    const vertices = createVerticesFromTriangles(data.triangle);
+    drawScene(vertices);
+
+    const uploadData = canvas.toDataURL("image/png");
+    const uploadResponse = await fetch(`${serviceBasePath}/upload_img/${seed}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+      },
+      body: uploadData,
+    });
+    if (!uploadResponse.ok) {
+      throw new Error(`Image upload failed: ${uploadResponse.statusText}`);
+    }
+    const uploadResult = await uploadResponse.json();
+    if (!uploadResult || !uploadResult.hash) {
+      throw new Error("Server did not return a hash value.");
+    }
+
+    renderHash(uploadResult.hash);
+    return uploadResult.hash;
+  }
+
+  async function runStabilityCheck() {
+    resultsContainer.innerHTML = "";
+    const hashes = [];
+    let baseline = null;
+    notifyParent("testStarted");
+
+    for (let i = 0; i < TEST_RUNS; i++) {
+      try {
+        const hash = await loadTriangles();
+        if (baseline === null) {
+          baseline = hash;
+        }
+        appendResult(i + 1, hash, hash === baseline);
+        hashes.push(hash);
+      } catch (error) {
+        displayError(`Run ${i + 1} failed: ${error.message}`);
+        notifyParent("testError", { message: error.message });
+        return;
+      }
+    }
+
+    const uniqueHashes = [...new Set(hashes)];
+    const allStable = uniqueHashes.length === 1;
+    appendSummary(allStable, uniqueHashes);
+    const persistResult = await persistTriangleStability(
+      allStable,
+      hashes,
+      baseline,
+      uniqueHashes
+    );
+
+    if (!persistResult || persistResult.success === false) {
+      const message = persistResult?.message || "Failed to save WebGL test results.";
+      notifyParent("testError", { message });
+      return;
+    }
+
+    const serverResult = persistResult.result || {};
+    const mismatchRuns = hashes
+      .map((hash, index) => (hash === baseline ? null : index + 1))
+      .filter((value) => value !== null);
+    const payloadMismatchRuns = Array.isArray(serverResult.mismatchRuns)
+      ? serverResult.mismatchRuns
+      : mismatchRuns;
+    const serverAllStable =
+      typeof serverResult.allStable === "boolean"
+        ? serverResult.allStable
+        : allStable;
+    const alertMessage =
+      serverResult.alertMessage ||
+      (allStable
+        ? `Rendering stable: all ${hashes.length} hashes matched the baseline.`
+        : `Inconsistencies detected: hashes changed on run(s) ${mismatchRuns.join(", ")}.`);
+
+    notifyParent("testComplete", {
+      baselineHash: serverResult.baselineHash || baseline,
+      allStable,
+      uniqueHashes,
+      totalRuns: hashes.length,
+      mismatchRuns: payloadMismatchRuns,
+      serverAllStable,
+      alertMessage,
+    });
+  }
+
+  runStabilityCheck().catch((error) => {
+    displayError(`Unexpected error: ${error.message}`);
+    notifyParent("testError", { message: error.message });
+  });
+</script>
+
+  </body>
+</html>

@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Canvas Stability Test</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: #f8fafc;
+        margin: 0;
+        padding: 20px;
+        color: #0f172a;
+      }
+      .container {
+        max-width: 1040px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      canvas {
+        width: 100%;
+        max-width: 1000px;
+        height: auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2);
+        background: #fff;
+      }
+      #status {
+        padding: 8px 12px;
+        border-radius: 9999px;
+        background: #e2e8f0;
+      }
+      #status.success {
+        background: #dcfce7;
+        color: #166534;
+      }
+      #status.error {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+      #hashDisplay {
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        padding: 10px 14px;
+        border-radius: 8px;
+        background: #0f172a;
+        color: #f8fafc;
+        letter-spacing: 0.04em;
+        overflow-x: auto;
+      }
+      #runBtn {
+        width: fit-content;
+        padding: 10px 18px;
+        border: none;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #6366f1, #2563eb);
+        color: white;
+        cursor: pointer;
+        box-shadow: 0 6px 18px rgba(37, 99, 235, 0.25);
+      }
+      #runBtn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        box-shadow: none;
+      }
+      #results {
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        background: #fff;
+        padding: 14px;
+        max-height: 320px;
+        overflow-y: auto;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      }
+      .result-entry {
+        padding: 6px 8px;
+        border-radius: 6px;
+        margin-bottom: 6px;
+        background: #f1f5f9;
+      }
+      .result-entry.stable {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .result-entry.unstable {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+      .result-entry.summary {
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <button id="runBtn">Run Canvas Stability Test</button>
+      <div id="status">Idle</div>
+      <canvas id="canvas" width="1000" height="1000"></canvas>
+      <div id="hashDisplay">Current hash: —</div>
+      <div id="results"></div>
+    </div>
+
+    <script type="module">
+      import { getSeedString } from "/webgl/preliminary_fingerprint.js";
+
+      const TEST_RUNS = 5;
+      const STRING_COUNT = 10;
+
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const statusEl = document.getElementById("status");
+      const hashDisplay = document.getElementById("hashDisplay");
+      const runBtn = document.getElementById("runBtn");
+      const resultsContainer = document.getElementById("results");
+      const query = new URLSearchParams(window.location.search);
+      const autoStart = query.get("autostart") === "1";
+      const parentOrigin = window.location.origin;
+      const currentUser = localStorage.getItem("currentUser");
+
+      function setStatus(message, tone = "info") {
+        statusEl.textContent = message;
+        statusEl.className = tone === "success" ? "success" : tone === "error" ? "error" : "";
+      }
+
+      function notifyParent(type, payload = {}) {
+        if (!autoStart) return;
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage({ source: "canvas", type, payload }, parentOrigin);
+        }
+      }
+
+      function appendResult(iteration, hash, matchesBaseline) {
+        const entry = document.createElement("div");
+        entry.className = `result-entry ${matchesBaseline ? "stable" : "unstable"}`;
+        entry.textContent = `Run ${iteration}: ${hash} ${matchesBaseline ? "(stable)" : "(changed)"}`;
+        resultsContainer.appendChild(entry);
+      }
+
+      function appendSummary(allStable, uniqueHashes, totalRuns) {
+        const entry = document.createElement("div");
+        entry.className = "result-entry summary";
+        entry.textContent = allStable
+          ? `All ${totalRuns} hashes matched the baseline.`
+          : `Hash differences detected: unique hash set ${uniqueHashes.join(", ")}.`;
+        resultsContainer.appendChild(entry);
+      }
+
+      async function fetchConfig(seed) {
+        const resp = await fetch(`/canvas/get_string_config/${seed}/${STRING_COUNT}/${canvas.width}/${canvas.height}`);
+        if (!resp.ok) {
+          throw new Error(`Failed to fetch draw configuration: HTTP ${resp.status}`);
+        }
+        return resp.json();
+      }
+
+      function drawStrings(config) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000000";
+        ctx.textBaseline = "top";
+        ctx.font = config.font || "20px Arial";
+        for (let i = 0; i < config.strings.length; i++) {
+          ctx.fillText(config.strings[i], config.xs[i], config.ys[i]);
+        }
+      }
+
+      async function upload(seed, dataUrl) {
+        const resp = await fetch(`/canvas/upload_img/${seed}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: dataUrl }),
+        });
+        if (!resp.ok) {
+          throw new Error(`Failed to upload image: HTTP ${resp.status}`);
+        }
+        return resp.json();
+      }
+
+      async function runSingleIteration(iteration, seed) {
+        const config = await fetchConfig(seed);
+        drawStrings(config);
+        const dataUrl = canvas.toDataURL("image/png");
+        const uploadResult = await upload(seed, dataUrl);
+        return {
+          hash: uploadResult.hash,
+          segmentHashes: uploadResult.segmentHashes || [],
+          drawConfig: {
+            strings: config.strings,
+            xs: config.xs,
+            ys: config.ys,
+            font: config.font || "20px Arial",
+            canvasWidth: canvas.width,
+            canvasHeight: canvas.height,
+          },
+        };
+      }
+
+      async function persistCanvasStability({ seed, baseline, runs, uniqueHashes, allStable }) {
+        if (!currentUser) {
+          return { success: false, message: "No signed-in user detected; unable to save the stability record." };
+        }
+
+        try {
+          const payload = {
+            username: currentUser,
+            seed,
+            baselineHash: baseline,
+            allStable,
+            uniqueHashes,
+            testRuns: runs.map((run) => ({
+              iteration: run.iteration,
+              hash: run.hash,
+              matchesBaseline: run.matchesBaseline,
+              segmentHashes: run.segmentHashes,
+              drawConfig: run.drawConfig,
+            })),
+            drawConfig: {
+              canvasWidth: canvas.width,
+              canvasHeight: canvas.height,
+              iterations: runs.map((run) => ({
+                iteration: run.iteration,
+                font: run.drawConfig.font,
+              })),
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          const response = await fetch("/user/canvas_stability", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const bodyText = await response.text();
+          let parsed = null;
+          if (bodyText) {
+            try {
+              parsed = JSON.parse(bodyText);
+            } catch (parseErr) {
+              console.warn("Failed to parse server response:", parseErr);
+            }
+          }
+
+          if (!response.ok || (parsed && parsed.status === "error")) {
+            const errorMessage = (parsed && parsed.error) || bodyText || response.statusText || "Unknown error";
+            throw new Error(errorMessage);
+          }
+
+          return { success: true, result: parsed };
+        } catch (error) {
+          return { success: false, message: error.message };
+        }
+      }
+
+      async function runCanvasTest() {
+        if (runBtn.disabled) return;
+        runBtn.disabled = true;
+        resultsContainer.innerHTML = "";
+        setStatus("Starting canvas test...");
+        hashDisplay.textContent = "Current hash: —";
+        notifyParent("testStarted");
+
+        try {
+          const seed = await getSeedString();
+          const runs = [];
+          let baseline = null;
+
+          for (let i = 0; i < TEST_RUNS; i++) {
+            setStatus(`Executing draw ${i + 1}/${TEST_RUNS}...`);
+            const iteration = await runSingleIteration(i + 1, seed);
+            const matchesBaseline = baseline === null || iteration.hash === baseline;
+            if (baseline === null) {
+              baseline = iteration.hash;
+            }
+            runs.push({
+              iteration: i + 1,
+              hash: iteration.hash,
+              matchesBaseline,
+              segmentHashes: iteration.segmentHashes,
+              drawConfig: iteration.drawConfig,
+            });
+            hashDisplay.textContent = `Current hash: ${iteration.hash}`;
+            appendResult(i + 1, iteration.hash, matchesBaseline);
+          }
+
+          const hashes = runs.map((run) => run.hash);
+          const uniqueHashes = [...new Set(hashes)];
+          const allStable = uniqueHashes.length === 1;
+          appendSummary(allStable, uniqueHashes, runs.length);
+
+          const persistResult = await persistCanvasStability({
+            seed,
+            baseline,
+            runs,
+            uniqueHashes,
+            allStable,
+          });
+
+          if (!persistResult.success) {
+            const message = persistResult.message || "Failed to save Canvas test results.";
+            setStatus(message, "error");
+            notifyParent("testError", { message });
+            return;
+          }
+
+          const serverPayload = persistResult.result || {};
+          const mismatchRuns = hashes
+            .map((hash, idx) => (hash === baseline ? null : idx + 1))
+            .filter((val) => val !== null);
+          const payloadMismatchRuns = Array.isArray(serverPayload.mismatchRuns)
+            ? serverPayload.mismatchRuns
+            : mismatchRuns;
+          const serverAllStable =
+            typeof serverPayload.allStable === "boolean" ? serverPayload.allStable : allStable;
+          const message = serverAllStable
+            ? `Canvas rendering stable: all ${hashes.length} hashes matched the baseline.`
+            : `Canvas instability detected on run(s): ${payloadMismatchRuns.join(", ") || "N/A"}.`;
+
+          setStatus(message, serverAllStable ? "success" : "error");
+          notifyParent("testComplete", {
+            baselineHash: serverPayload.baselineHash || baseline,
+            allStable: serverAllStable,
+            uniqueHashes,
+            totalRuns: hashes.length,
+            mismatchRuns: payloadMismatchRuns,
+            hash: hashes[hashes.length - 1],
+            alertMessage: message,
+          });
+        } catch (error) {
+          console.error("Canvas test failed:", error);
+          setStatus(`Error: ${error.message}`, "error");
+          notifyParent("testError", { message: error.message });
+        } finally {
+          if (!autoStart) {
+            runBtn.disabled = false;
+          }
+        }
+      }
+
+      runBtn.addEventListener("click", runCanvasTest);
+      if (autoStart) {
+        runBtn.style.display = "none";
+        setTimeout(runCanvasTest, 300);
+      }
+    </script>
+  </body>
+</html>
