@@ -9,7 +9,6 @@ from datetime import datetime
 
 from flask import Flask, render_template, jsonify, request
 from Webgl.routes import webgl_bp
-from Webgl2.routes import webgl2_bp
 from Audio.routes import audio_bp
 from Canvas.routes import canvas_bp
 from User_Manager.user_manager import (
@@ -19,8 +18,6 @@ from User_Manager.user_manager import (
     append_triangle_stability,
     get_user_record,
     set_triangle_baseline,
-    append_triangle2_stability,
-    set_triangle2_baseline,
     append_audio_stability,
     set_audio_baseline,
     append_canvas_stability,
@@ -35,11 +32,8 @@ device_info = {}
 request_count = 0      # ✅ counter: track /analyze calls
 SAVE_INTERVAL = 10     # ✅ persist CSV every 10 requests
 app = Flask(__name__)
-reports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'reports3')
-os.makedirs(reports_dir, exist_ok=True)
 # Register blueprints
 app.register_blueprint(webgl_bp, url_prefix='/webgl')
-app.register_blueprint(webgl2_bp, url_prefix='/webgl2')
 app.register_blueprint(audio_bp, url_prefix='/audio')
 app.register_blueprint(canvas_bp, url_prefix='/canvas')
 
@@ -112,39 +106,6 @@ def open_browser():
 @app.route('/')
 def index():
     return render_template('base.html')
-@app.route('/consent', methods=['POST'])
-def consent():
-    """Record user consent status"""
-    try:
-        data = request.json
-        consent_given = data.get('consent', False)
-        timestamp = (
-            data.get('time')
-            or data.get('timestamp')
-            or time.strftime('%Y-%m-%d %H:%M:%S')
-        )
-        print(f"🟢 Consent status: {consent_given} (timestamp: {timestamp})")
-
-        username = (data.get("username") or "").strip()
-        if username:
-            ok_session, session_msg = _validate_session_owner(username)
-            if not ok_session:
-                return jsonify({"status": "error", "error": session_msg}), 409
-
-        # Optionally record consent status in a log file
-        log_path = os.path.join(reports_dir, "consent_log.csv")
-        file_exists = os.path.exists(log_path)
-        with open(log_path, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(['timestamp', 'consent_granted'])
-            writer.writerow([timestamp, consent_given])
-
-        return jsonify({"status": "ok", "consent": consent_given})
-    except Exception as e:
-        print("❌ Consent error:", e)
-        return jsonify({"error": str(e)}), 500
-
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -266,39 +227,6 @@ def capture_fingerprint():
         return jsonify(status='error', error=session_msg), 409
     fingerprint_details = data.get("fingerprint")
     captured_at = data.get("timestamp") or time.strftime('%Y-%m-%d %H:%M:%S')
-    capture_started_raw = (data.get("captureStartedAt") or "").strip()
-    capture_finished_raw = (data.get("captureFinishedAt") or "").strip()
-    duration_ms_raw = data.get("fingerprintDurationMs")
-
-    def _parse_iso_or_none(value):
-        if not value:
-            return None
-        normalized = value.replace('Z', '+00:00') if value.endswith('Z') else value
-        try:
-            return datetime.fromisoformat(normalized)
-        except ValueError:
-            return None
-
-    capture_started = _parse_iso_or_none(capture_started_raw)
-    capture_finished = _parse_iso_or_none(capture_finished_raw)
-
-    duration_ms = None
-    if duration_ms_raw is not None:
-        try:
-            duration_ms = int(duration_ms_raw)
-        except (TypeError, ValueError):
-            duration_ms = None
-    if (
-        duration_ms is None
-        and capture_started
-        and capture_finished
-        and capture_finished >= capture_started
-    ):
-        delta = capture_finished - capture_started
-        duration_ms = int(delta.total_seconds() * 1000)
-
-    capture_started_iso = capture_started.isoformat() if capture_started else ""
-    capture_finished_iso = capture_finished.isoformat() if capture_finished else ""
 
     payload = {
         "captured_at": captured_at,
@@ -307,17 +235,11 @@ def capture_fingerprint():
         "details": fingerprint_details,
         "client_ip": request.remote_addr,
         "user_agent": request.headers.get("User-Agent"),
-        "capture_started_at": capture_started_iso,
-        "capture_finished_at": capture_finished_iso,
-        "fingerprint_duration_ms": duration_ms,
     }
 
     ok, msg = store_user_fingerprint(username, payload)
     if ok:
-        response_payload = {"status": "ok"}
-        if duration_ms is not None:
-            response_payload["fingerprintDurationMs"] = duration_ms
-        return jsonify(response_payload)
+        return jsonify(status="ok")
     return jsonify(status='error', error=msg), 400
 
 
@@ -382,69 +304,6 @@ def record_triangle_stability():
     return jsonify(status='error', error=msg), 400
 
 
-@app.route('/user/triangle2_stability', methods=['POST'])
-def record_triangle2_stability():
-    data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip()
-    if not username:
-        return jsonify(status='error', error="Username is required"), 400
-    ok_session, session_msg = _validate_session_owner(username)
-    if not ok_session:
-        return jsonify(status='error', error=session_msg), 409
-
-    user_record = get_user_record(username)
-    if user_record is None:
-        return jsonify(status='error', error="User does not exist"), 404
-
-    runs_payload = data.get("testRuns") or []
-    hashes = [
-        run.get("hash")
-        for run in runs_payload
-        if isinstance(run, dict) and run.get("hash")
-    ]
-    if not hashes:
-        return jsonify(status='error', error="Missing valid hash data"), 400
-
-    stored_baseline = (user_record.get("triangle2_baseline") or "").strip()
-    client_baseline = (data.get("baselineHash") or data.get("localBaseline") or "").strip()
-    baseline_used = stored_baseline or client_baseline or hashes[0]
-
-    if not stored_baseline:
-        set_triangle2_baseline(username, baseline_used)
-
-    mismatches = [idx + 1 for idx, hash_value in enumerate(hashes) if hash_value != baseline_used]
-    all_stable = len(mismatches) == 0
-
-    record = {
-        "captured_at": data.get("timestamp") or time.strftime('%Y-%m-%d %H:%M:%S'),
-        "seed": data.get("seed"),
-        "baseline_hash": baseline_used,
-        "all_stable": all_stable,
-        "unique_hashes": list(dict.fromkeys(hashes)),
-        "runs": runs_payload,
-        "hashes": hashes,
-        "mismatch_runs": mismatches,
-        "client_ip": request.remote_addr,
-        "variant": data.get("testVariant") or "webgl2",
-    }
-
-    ok, msg = append_triangle2_stability(username, record)
-    if ok:
-        alert_message = (
-            f"Rendering stable: all {len(hashes)} hashes matched the baseline {baseline_used}."
-            if all_stable
-            else f"Inconsistencies detected: runs {', '.join(map(str, mismatches))} deviated from baseline {baseline_used}."
-        )
-        response = {
-            "status": "ok",
-            "baselineHash": baseline_used,
-            "allStable": all_stable,
-            "mismatchRuns": mismatches,
-            "totalRuns": len(hashes),
-            "alertMessage": alert_message,
-        }
-        return jsonify(response)
-    return jsonify(status='error', error=msg), 400
 
 
 @app.route('/user/audio_stability', methods=['POST'])
@@ -600,6 +459,7 @@ def record_canvas_stability():
         }
         return jsonify(response)
     return jsonify(status='error', error=msg), 400
+
 
 if __name__ == '__main__':
 

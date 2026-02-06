@@ -8,7 +8,7 @@ from datetime import datetime
 import flask
 from flask import Blueprint, jsonify
 
-from Audio.drbg import HMACDRBG
+from drbg import HMACDRBG
 
 audio_bp = Blueprint(
     "audio",

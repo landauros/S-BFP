@@ -12,8 +12,6 @@ from PIL import Image
 import numpy as np
 from scipy import ndimage
 
-# from temp.lib.User_Manager.user_manager import USERS_FILE
-
 
 class HMACDRBG:
     """
@@ -25,11 +23,11 @@ class HMACDRBG:
     """
 
     def __init__(
-            self,
-            entropy_input: bytes,
-            nonce: bytes = b"",
-            personalization_string: bytes = b"",
-            reseed_interval: int = 2 ** 48,  # per spec (practically "very large")
+        self,
+        entropy_input: bytes,
+        nonce: bytes = b"",
+        personalization_string: bytes = b"",
+        reseed_interval: int = 2**48,  # per spec (practically "very large")
     ):
         self._hash = hashlib.sha256
         self._outlen = self._hash().digest_size  # 32 bytes for SHA-256
@@ -150,22 +148,49 @@ class HMACDRBG:
 
 
 class AABB:
+    __slots__ = ("x0", "y0", "x1", "y1")
+
     def __init__(self, x0, y0, x1, y1):
-        self.x0 = x0
-        self.y0 = y0
-        self.x1 = x1
-        self.y1 = y1
+        if x1 < x0 or y1 < y0:
+            raise ValueError("Invalid AABB: (x1,y1) must be >= (x0,y0)")
+        self.x0, self.y0, self.x1, self.y1 = x0, y0, x1, y1
 
     def intersects(self, other):
+        # Half-open boxes: edges touching do NOT count as intersection.
         return not (
-                self.x1 < other.x0
-                or self.x0 > other.x1
-                or self.y1 < other.y0
-                or self.y0 > other.y1
+            self.x1 <= other.x0
+            or self.x0 >= other.x1
+            or self.y1 <= other.y0
+            or self.y0 >= other.y1
         )
+
+    def contains_aabb(self, other):
+        # Full containment (half-open convention).
+        return (
+            self.x0 <= other.x0
+            and self.y0 <= other.y0
+            and self.x1 >= other.x1
+            and self.y1 >= other.y1
+        )
+
+    def contains_point(self, x, y):
+        return (self.x0 <= x < self.x1) and (self.y0 <= y < self.y1)
 
 
 class Quadtree:
+    __slots__ = (
+        "boundary",
+        "capacity",
+        "depth",
+        "max_depth",
+        "items",
+        "divided",
+        "nw",
+        "ne",
+        "sw",
+        "se",
+    )
+
     def __init__(self, boundary, capacity=4, depth=0, max_depth=10):
         self.boundary = boundary  # AABB
         self.capacity = capacity
@@ -174,6 +199,7 @@ class Quadtree:
 
         self.items = []  # list of (AABB, data)
         self.divided = False
+        self.nw = self.ne = self.sw = self.se = None
 
     def subdivide(self):
         x0, y0, x1, y1 = (
@@ -182,8 +208,8 @@ class Quadtree:
             self.boundary.x1,
             self.boundary.y1,
         )
-        mx = (x0 + x1) / 2
-        my = (y0 + y1) / 2
+        mx = (x0 + x1) / 2.0
+        my = (y0 + y1) / 2.0
 
         self.nw = Quadtree(
             AABB(x0, y0, mx, my), self.capacity, self.depth + 1, self.max_depth
@@ -197,50 +223,66 @@ class Quadtree:
         self.se = Quadtree(
             AABB(mx, my, x1, y1), self.capacity, self.depth + 1, self.max_depth
         )
-
         self.divided = True
 
+    def _child_for(self, aabb):
+        """Return a child node that fully contains `aabb`, or None if it spans multiple."""
+        if not self.divided:
+            return None
+        for child in (self.nw, self.ne, self.sw, self.se):
+            if child.boundary.contains_aabb(aabb):
+                return child
+        return None
+
+    def _maybe_split_and_push_down(self):
+        """Subdivide if needed and push down items that now fit in a child."""
+        if (
+            self.divided
+            or (len(self.items) <= self.capacity)
+            or (self.depth >= self.max_depth)
+        ):
+            return
+        self.subdivide()
+        kept = []
+        for aabb, data in self.items:
+            child = self._child_for(aabb)
+            if child is not None:
+                child.insert(aabb, data)
+            else:
+                kept.append((aabb, data))
+        self.items = kept
+
     def insert(self, aabb, data):
-        # If outside this quadtree's boundary, ignore
-        if not self.boundary.intersects(aabb):
+        # Option A: reject if not even overlapping the global boundary (fast path).
+        if not self.boundary.intersects(aabb) and not self.boundary.contains_aabb(aabb):
             return False
 
-        # If space available and not too deep, store it
-        if len(self.items) < self.capacity or self.depth == self.max_depth:
-            self.items.append((aabb, data))
-            return True
+        # If we can place deeper, try to do so.
+        if self.divided:
+            child = self._child_for(aabb)
+            if child is not None:
+                return child.insert(aabb, data)
 
-        # Otherwise subdivide and insert into children
-        if not self.divided:
-            self.subdivide()
-
-        if self.nw.insert(aabb, data):
-            return True
-        if self.ne.insert(aabb, data):
-            return True
-        if self.sw.insert(aabb, data):
-            return True
-        if self.se.insert(aabb, data):
-            return True
-
-        # Fallback to storing here if something weird happens
+        # Store here.
         self.items.append((aabb, data))
+
+        # If over capacity, split and push down.
+        self._maybe_split_and_push_down()
         return True
 
     def query(self, range_aabb, found=None):
         if found is None:
             found = []
 
-        # If no intersection at all, stop searching
         if not self.boundary.intersects(range_aabb):
             return found
 
-        # Check current node's items
+        # Collect from this node
         for aabb, data in self.items:
             if aabb.intersects(range_aabb):
                 found.append((aabb, data))
 
-        # Check children if subdivided
+        # Search children
         if self.divided:
             self.nw.query(range_aabb, found)
             self.ne.query(range_aabb, found)
@@ -249,9 +291,24 @@ class Quadtree:
 
         return found
 
+    def query_point(self, x, y, found=None):
+        if found is None:
+            found = []
+        if not self.boundary.contains_point(x, y):
+            return found
+
+        for aabb, data in self.items:
+            if aabb.contains_point(x, y):
+                found.append((aabb, data))
+
+        if self.divided:
+            for child in (self.nw, self.ne, self.sw, self.se):
+                child.query_point(x, y, found)
+        return found
+
 
 def generate_triangle_in_region(
-        drbg_pos, drbg_shape, x0, y0, x1, y1, margin=2, box_width=64, box_height=64
+    drbg_pos, drbg_shape, x0, y0, x1, y1, margin=2, box_width=64, box_height=64
 ):
     """
     Generate a triangle in a region.
@@ -266,15 +323,36 @@ def generate_triangle_in_region(
     @param box_height: The max height of the box that contains the triangle.
     @return: A list of 3 points representing the triangle.
     """
-    # Generates a random position for the left most vertex.
+    # static triangle
     triangle = [
-                   drbg_pos.randint(x0 + margin, x1 - margin - box_width),
-                   drbg_pos.randint(y0 + margin + box_height, y1 - margin - box_height),
-               ] * 3
-    # Adds two random vertices to the right of the left most vertex.
-    for i in range(1, 3):
-        triangle[i * 2] += drbg_shape.uniform(8, box_width)
-        triangle[i * 2 + 1] += drbg_shape.uniform(-box_height, box_height)
+        0,
+        55,
+        17.38389009393539,
+        0.67781283689527,
+        39.3956816724991,
+        8.0780276923631,
+    ]
+
+    x_offset = drbg_pos.randint(x0 + margin, x1 - margin - box_width)
+    y_offset = drbg_pos.randint(y0 + margin + box_height, y1 - margin - box_height)
+    triangle[0] += x_offset
+    triangle[1] += y_offset
+    triangle[2] += x_offset
+    triangle[3] += y_offset
+    triangle[4] += x_offset
+    triangle[5] += y_offset
+
+    # # Generates a random position for the left most vertex.
+    # triangle = [
+    #     drbg_pos.randint(x0 + margin, x1 - margin - box_width),
+    #     drbg_pos.randint(y0 + margin + box_height, y1 - margin - box_height),
+    # ] * 3
+    # # Adds two random vertices to the right of the left most vertex.
+    # # for i in range(1, 3):
+    # #     triangle[i * 2] += drbg_shape.uniform(8, box_width)
+    # #     triangle[i * 2 + 1] += drbg_shape.uniform(-box_height, box_height)
+    # triangle[2] += drbg_shape.uniform(1, box_width)
+    # triangle[5] += drbg_shape.uniform(-box_height, box_height)
 
     bbox = [
         math.floor(min(triangle[0], triangle[2], triangle[4]) - margin),
@@ -286,14 +364,14 @@ def generate_triangle_in_region(
 
 
 def generate_non_overlapping_triangles_quadtree(
-        drbg_pos, drbg_shape, n, width, height, triangle_size=64
+    drbg_pos, drbg_shape, n, width, height, triangle_size=64
 ):
     """
     Generate n non-overlapping triangles.
     """
     triangles = []
     bboxes = []
-    quadtree = Quadtree(AABB(0, 0, width, height), capacity=n)
+    quadtree = Quadtree(AABB(0, 0, width, height))
     max_attempts = n * 10  # Maximum attempts to avoid infinite loops
     attempts = 0
 
@@ -369,17 +447,17 @@ webgl_bp = Blueprint(
 
 @webgl_bp.route("/")
 def index():
-    return flask.send_file("Webgl/stability.html")
+    return flask.send_file("webgl/stability.html")
 
 
 @webgl_bp.route("/utils/<path:filename>")
 def serve_utils(filename):
-    return flask.send_file(f"utils/{filename}")
+    return flask.send_file(f"webgl/utils/{filename}")
 
 
 @webgl_bp.route("/preliminary_fingerprint.js")
 def serve_fingerprint():
-    return flask.send_file("Webgl/preliminary_fingerprint.js")
+    return flask.send_file("webgl/preliminary_fingerprint.js")
 
 
 @webgl_bp.route("/get_triangle/<string:seed>/<int:width>/<int:height>")
@@ -431,16 +509,16 @@ def get_triangles(n, seed, width, height):
         return jsonify({"error": f"Error generating triangles: {str(e)}"}), 500
 
 
-# def _load_users():
-#     """Load the user list."""
-#     if not os.path.exists(USERS_FILE):
-#         return []
-#     try:
-#         with open(USERS_FILE, "r", encoding="utf-8") as f:
-#             data = json.load(f)
-#             return data if isinstance(data, list) else []
-#     except Exception:
-#         return []
+def _load_users():
+    """Load user list."""
+    if not os.path.exists(USERS_FILE):
+        return []
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, list) else []
+    except Exception:
+        return []
 
 
 @webgl_bp.route("/upload_img/<string:seed>", methods=["POST"])
@@ -457,7 +535,7 @@ def upload_img(seed):
             # Find the comma and get the base64 part
             comma_index = data_url.find(b",")
             if comma_index != -1:
-                encoded = data_url[comma_index + 1:]
+                encoded = data_url[comma_index + 1 :]
     except ValueError:
         return jsonify({"error": "Invalid data URL"}), 400
 
@@ -481,5 +559,6 @@ def upload_img(seed):
             "individual_hashes": segment_hashes,
         }
     )
+
 
 # webgl_bp.run(debug=False, port=5000, host="0.0.0.0")

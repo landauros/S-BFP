@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Unified Testing Platform</title>
+  <title>S-BFP Testing Platform</title>
   <style>
     /* ========== Global Base Styles ========== */
     body {
@@ -133,107 +133,6 @@
       background: #0d9488;
     }
 
-    /* ========== Consent Modal Styles ========== */
-    #consent-modal {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      background: rgba(0, 0, 0, 0.6);
-      z-index: 9999;
-    }
-    #consent-box {
-      background: white;
-      padding: 24px;
-      border-radius: 16px;
-      width: 95%;
-      max-width: 1120px;
-      text-align: left;
-      box-shadow: 0 18px 60px rgba(15, 23, 42, 0.25);
-      font-size: 14px;
-    }
-    #consent-buttons {
-      text-align: right;
-      margin-top: 20px;
-    }
-    #consent-buttons button {
-      margin-left: 10px;
-      padding: 8px 18px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: 500;
-    }
-    #consent-accept { background-color: #10b981; color: white; }
-    #consent-accept:hover { background-color: #059669; }
-    #consent-decline { background-color: #e2e8f0; color: #334155; }
-    #consent-decline:hover { background-color: #cbd5e1; }
-
-    .consent-statement-container {
-      border: 1px solid #cbd5e1;
-      border-radius: 14px;
-      overflow: hidden;
-      background: #ffffff;
-    }
-    .consent-statement-header {
-      background: #e2e8f0;
-      color: #0f172a;
-      padding: 18px 24px;
-      font-size: 20px;
-      font-weight: 600;
-      text-align: center;
-      border-bottom: 1px solid #cbd5e1;
-    }
-    .consent-statement-content {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0;
-      background: #ffffff;
-      border-bottom: 1px solid #e2e8f0;
-    }
-    .consent-statement-pane {
-      flex: 1 1 320px;
-      padding: 24px;
-      max-height: 55vh;
-      overflow-y: auto;
-      line-height: 1.7;
-      font-size: 15px;
-      color: #1f2937;
-    }
-    .consent-statement-pane h2 {
-      font-size: 18px;
-      font-weight: 600;
-      margin-top: 22px;
-      padding-bottom: 6px;
-      border-bottom: 1px solid #d1d5db;
-    }
-    .consent-statement-pane h2:first-of-type {
-      margin-top: 0;
-    }
-    .consent-statement-pane p,
-    .consent-statement-pane li {
-      font-size: 15px;
-      margin: 8px 0;
-      text-align: justify;
-    }
-    .consent-statement-pane ul {
-      margin: 8px 0 8px 20px;
-      padding: 0;
-    }
-    .consent-statement-footer {
-      background: #f8fafc;
-      padding: 14px 24px;
-      font-size: 14px;
-      color: #475569;
-      text-align: center;
-    }
-    @media (max-width: 900px) {
-      .consent-statement-pane {
-        max-height: 40vh;
-      }
-    }
-
     /* ========== Test Status Modal Styles ========== */
     #test-status-modal {
       position: fixed;
@@ -283,9 +182,7 @@
     async function captureFingerprint(username) {
       if (!username) return;
       try {
-        const captureStartedAt = Date.now();
         const fingerprint = await getFullFingerprint();
-        const captureFinishedAt = Date.now();
         await fetch("/user/fingerprint", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -295,9 +192,6 @@
             fingerprintHash: fingerprint.hash,
             fingerprintString: fingerprint.string,
             fingerprint: fingerprint.raw,
-            captureStartedAt: new Date(captureStartedAt).toISOString(),
-            captureFinishedAt: new Date(captureFinishedAt).toISOString(),
-            fingerprintDurationMs: captureFinishedAt - captureStartedAt,
           }),
         });
       } catch (error) {
@@ -307,7 +201,6 @@
 
     const testProgress = {
       webgl: { status: "idle", message: "", serverStable: null },
-      webgl2: { status: "idle", message: "", serverStable: null },
       audio: { status: "idle", message: "", serverStable: null },
       canvas: { status: "idle", message: "", serverStable: null },
     };
@@ -319,34 +212,7 @@
     let sessionHeartbeatTimer = null;
     let sessionReleased = true;
     const SESSION_HEARTBEAT_MIN_INTERVAL = 10;
-    const AUTO_CLOSE_DELAY_MS = 5000;
-    let autoCloseTimer = null;
     let overlayCloseTimer = null;
-
-    function scheduleAutoClose(reason = "completed") {
-      if (autoCloseTimer) {
-        return;
-      }
-      if (testStatusText) {
-        const note = " (Please close this page.)";
-        if (!testStatusText.textContent.includes("auto-close") && !testStatusText.textContent.includes("自动关闭")) {
-          testStatusText.textContent = `${testStatusText.textContent}${note}`;
-        }
-      }
-      autoCloseTimer = setTimeout(async () => {
-        await releaseExclusiveSession(`auto_close_${reason}`, false, true);
-        try {
-          window.open('', '_self');
-          window.close();
-        } catch (error) {
-          // ignore
-        }
-        if (!window.closed) {
-          window.location.replace("/");
-        }
-        autoCloseTimer = null;
-      }, AUTO_CLOSE_DELAY_MS);
-    }
 
     function clearSessionHeartbeat() {
       if (sessionHeartbeatTimer) {
@@ -515,7 +381,6 @@
 
     function resetTestProgress() {
       testProgress.webgl = { status: "pending", message: "", serverStable: null };
-      testProgress.webgl2 = { status: "pending", message: "", serverStable: null };
       testProgress.audio = { status: "pending", message: "", serverStable: null };
       testProgress.canvas = { status: "pending", message: "", serverStable: null };
       setStatusIcon(null);
@@ -538,7 +403,6 @@
         testStatusText.textContent = `Test errors: ${errorMessages.join("; ")}`;
         testStatusModal.style.display = "flex";
         releaseExclusiveSession("test_error");
-        scheduleAutoClose("error");
         return;
       }
 
@@ -562,7 +426,6 @@
         }
         testStatusModal.style.display = "flex";
         releaseExclusiveSession("tests_complete");
-        scheduleAutoClose("complete");
         return;
       }
 
@@ -818,72 +681,29 @@
       }
     }
 
-    function showConsentModal(onAgree, onDecline) {
-      const modal = document.getElementById("consent-modal");
-      if (!modal) {
-        console.error("Unable to find the consent-modal element!");
-        return;
-      }
-      modal.style.display = "flex";
-
-      document.getElementById("consent-accept").onclick = async () => {
-        modal.style.display = "none";
-        await fetch("/consent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ consent: true, timestamp: new Date().toISOString(), username: window.currentUser }),
-        });
-        resetTestProgress();
-        if (typeof onAgree === "function") onAgree();
-      };
-
-      document.getElementById("consent-decline").onclick = async () => {
-        modal.style.display = "none";
-        await fetch("/consent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ consent: false, timestamp: new Date().toISOString(), username: window.currentUser }),
-        });
-        releaseExclusiveSession("consent_declined");
-        if (typeof onDecline === "function") onDecline();
-      };
-    }
-
     window.addEventListener("DOMContentLoaded", () => {
       showRegisterPopup((username) => {
-        showConsentModal(
-          () => {
-            const webglFrame = document.getElementById("sys1");
-            const webgl2Frame = document.getElementById("sys2");
-            const audioFrame = document.getElementById("sys3");
-            const canvasFrame = document.getElementById("sys4");
-            if (webglFrame) {
-              webglFrame.src = "/webgl/?autostart=1";
-            }
-            if (webgl2Frame) {
-              webgl2Frame.src = "/webgl2/?autostart=1";
-            }
-            if (audioFrame) {
-              audioFrame.src = "/audio/?autostart=1";
-            }
-            if (canvasFrame) {
-              canvasFrame.src = "/canvas/?autostart=1";
-            }
-          },
-          () => {
-            alert("You declined to participate; this page will not collect any browser fingerprint data.");
-          }
-        );
+        const webglFrame = document.getElementById("sys1");
+        const audioFrame = document.getElementById("sys3");
+        const canvasFrame = document.getElementById("sys4");
+        if (webglFrame) {
+          webglFrame.src = "/webgl/?autostart=1";
+        }
+        if (audioFrame) {
+          audioFrame.src = "/audio/?autostart=1";
+        }
+        if (canvasFrame) {
+          canvasFrame.src = "/canvas/?autostart=1";
+        }
       });
     });
   </script>
 </head>
 
 <body>
-  <h1>Unified Testing Platform</h1>
+  <h1>S-BFP Testing Platform</h1>
   <div style="display: flex; flex-wrap: wrap; gap: 2%; justify-content: center; margin: 0 auto 20px; max-width: 1500px;">
     <iframe id="sys1" style="flex: 1 1 45%; min-width: 320px; height: 500px; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);"></iframe>
-    <iframe id="sys2" style="flex: 1 1 45%; min-width: 320px; height: 500px; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);"></iframe>
     <iframe id="sys3" style="flex: 1 1 45%; min-width: 320px; height: 500px; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);"></iframe>
     <iframe id="sys4" style="flex: 1 1 45%; min-width: 320px; height: 500px; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);"></iframe>
   </div>
@@ -907,97 +727,6 @@
     </div>
   </div>
 
-  <!-- Consent Modal -->
-  <div id="consent-modal">
-    <div id="consent-box">
-      <div class="consent-statement-container">
-        <div class="consent-statement-header">
-          🧭 Research Participation and Data Collection Statement / 研究参与与数据收集声明
-        </div>
-        <div class="consent-statement-content">
-          <div class="consent-statement-pane">
-            <h2>1. Research Overview</h2>
-            <p>This research is organized by <strong>Professor Wu Shujiang’s research team</strong> at the School of Computer Science, Beihang University. The study focuses on developing a <strong>risk-based user authentication mechanism based on browser fingerprinting technologies</strong>.</p>
-            <p>The core objective is to explore the expressive capability, stability, and privacy implications of browser fingerprinting for Web authentication, and to design a more secure and usable adaptive authentication framework.</p>
-            <p>All outcomes are for <strong>academic and research purposes only</strong>, including scholarly publications and conference presentations, with <strong>no commercial use</strong> involved.</p>
-
-            <h2>2. Introduction to Browser Fingerprinting</h2>
-            <p>A “browser fingerprint” refers to the combination of technical characteristics your browser and device reveal when visiting a website, such as screen size, installed fonts, or browser version. Individually, these details are ordinary; together, they create a highly distinctive digital signature.</p>
-            <p>This research aims to analyze such characteristics systematically and study how they can enhance intelligent and privacy-aware authentication systems.</p>
-
-            <h2>3. Scope and Purpose of Data Collection</h2>
-            <p>During voluntary participation, our system may automatically collect certain non-personal environment data for analytical purposes. The data collected may include:</p>
-            <ul>
-              <li>Basic browser info (User-Agent, version, OS, language)</li>
-              <li>Display details (resolution, pixel ratio, color depth, viewport size)</li>
-              <li>Time zone and locale</li>
-              <li>Browser capability and API support data</li>
-              <li>Fingerprints from Canvas, WebGL, and AudioContext technologies</li>
-              <li>Interaction statistics (e.g., timing or behavioral variance) for stability evaluation</li>
-            </ul>
-            <p>We <strong>do not collect personally identifiable information</strong> (name, email, IP, or login credentials), nor associate data with any user identity.</p>
-
-            <h2>4. Data Storage, Security, and Access</h2>
-            <p>All data are accessible only to authorized team members and are securely stored on Beihang University’s research servers. Security measures include <strong>encryption, access control, anonymization, and audit logging</strong>.</p>
-            <p>Data are retained only for the research duration and will be permanently deleted after completion. Publications include only aggregated results.</p>
-
-            <h2>5. Voluntary Participation and Consent</h2>
-            <p>Participation is completely voluntary. You may choose to “Agree” or “Decline” before any data collection begins. Choosing “Agree” indicates that you fully understand and consent to the use of anonymized fingerprint data solely for research purposes.</p>
-            <p>You may withdraw participation or request data deletion anytime by contacting the research team. Withdrawal will not cause any adverse consequence.</p>
-
-            <h2>6. Ethical Standards and Compliance</h2>
-            <p>This research complies with <strong>ethical review</strong> and international standards on privacy, data protection, and responsible academic research.</p>
-            <p>All study activities follow the principles of <strong>informed consent, minimal necessity, anonymization, and data transparency</strong>.</p>
-
-            <h2>7. Contact Information</h2>
-            <p>📧 23373306@buaa.edu.cn / andaul951@gmail.com</p>
-          </div>
-          <div class="consent-statement-pane">
-            <h2>一、研究项目概述</h2>
-            <p>本研究由<strong>北京航空航天大学计算机学院巫蜀江老师研究团队</strong>组织开展，研究方向为基于浏览器指纹的风险自适应用户认证机制。</p>
-            <p>研究的核心目标是探索浏览器指纹技术在 Web 用户身份认证中的特征表达能力、稳定性与隐私影响，并在此基础上设计更具安全性与可用性的风险自适应认证系统。</p>
-            <p>研究成果仅用于<strong>科学研究与学术交流</strong>，包括论文发表、学术会议报告及国际学术期刊投稿，不涉及任何商业用途。</p>
-
-            <h2>二、浏览器指纹简介</h2>
-            <p>“浏览器指纹”是指您的浏览器和设备在访问网站时所透露的综合技术特征，如屏幕大小、系统字体、浏览器版本等。这些信息单独看平常，但组合后具有高度辨识度。</p>
-            <p>本研究旨在系统分析指纹特征，探索其在智能化和隐私友好的身份认证中的应用。</p>
-
-            <h2>三、数据收集的范围与目的</h2>
-            <p>在您自愿参与本实验的过程中，系统可能会自动收集部分与浏览器和设备环境相关的数据，用于科研分析和模型评估。包括但不限于：</p>
-            <ul>
-              <li>浏览器信息（User-Agent、版本、操作系统、语言）</li>
-              <li>显示特征（分辨率、像素比、颜色深度、视口大小）</li>
-              <li>时区与地区信息</li>
-              <li>浏览器功能与 API 支持情况</li>
-              <li>Canvas、WebGL、AudioContext 等技术生成的指纹特征</li>
-              <li>交互统计特征（时间间隔或行为波动）</li>
-            </ul>
-            <p>研究团队<strong>不会主动收集任何个人身份信息</strong>（姓名、邮箱、账号、IP 地址等），也不会与用户身份建立关联。</p>
-
-            <h2>四、数据存储、安全与访问控制</h2>
-            <p>所有数据仅限授权的研究团队成员访问，并存储于北航研究服务器中。团队遵守严格的数据安全规范，包括<strong>加密存储、权限控制、匿名化与日志审计</strong>。</p>
-            <p>数据仅在科研项目执行期间保存，项目结束后将被彻底删除。研究报告中仅展示聚合后的统计结果。</p>
-
-            <h2>五、自愿参与与知情同意</h2>
-            <p>本研究完全基于自愿原则。您可以在数据采集前选择“同意”或“拒绝”。选择“同意”表示您已充分理解并授权研究团队在匿名化前提下使用相关数据。</p>
-            <p>您可随时联系研究团队撤回参与或删除数据，不会产生任何不利影响。</p>
-
-            <h2>六、伦理规范与学术合规</h2>
-            <p>本研究遵守<strong>科研伦理审查制度</strong>及国际学术界关于隐私保护、人类研究伦理与数据安全的标准。</p>
-            <p>所有研究活动遵循<strong>知情同意、最小必要性、匿名化与数据透明</strong>的原则，确保公正、安全与科研诚信。</p>
-
-            <h2>七、联系方式</h2>
-            <p>📧 23373306@buaa.edu.cn / andaul951@gmail.com</p>
-          </div>
-        </div>
-
-      </div>
-      <div id="consent-buttons">
-        <button id="consent-decline">Decline / 拒绝</button>
-        <button id="consent-accept">Agree / 同意</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Test Status Modal -->
   <div id="test-status-modal">

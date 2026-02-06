@@ -11,7 +11,7 @@ import flask
 from PIL import Image
 from flask import Blueprint, jsonify, request
 
-from Audio.drbg import HMACDRBG
+from drbg import HMACDRBG
 
 canvas_bp = Blueprint(
     "canvas",

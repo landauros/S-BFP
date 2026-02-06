@@ -98,7 +98,7 @@
   import { getSeedString } from "./preliminary_fingerprint.js";
 
   const TRIANGLE_COUNT = 8;
-  const TEST_RUNS = 10;
+  const TEST_RUNS = 1;
 
   const canvas = document.getElementById("Canvas");
   const hashCanvas = document.getElementById("hash");
@@ -108,11 +108,8 @@
   const gl = canvas.getContext("webgl");
   const pathWithoutTrailingSlash = window.location.pathname.replace(/\/$/, "");
   const serviceBasePath = pathWithoutTrailingSlash || "/webgl";
-  const usingRoutes2 = serviceBasePath.startsWith("/webgl2");
-  const stabilityEndpoint = usingRoutes2
-    ? "/user/triangle2_stability"
-    : "/user/triangle_stability";
-  const testVariant = usingRoutes2 ? "webgl2" : "webgl";
+  const stabilityEndpoint = "/user/triangle_stability";
+  const testVariant = "webgl";
   if (!gl) {
     resultsContainer.textContent = "WebGL not supported in this browser.";
     throw new Error("WebGL not supported in this browser.");
@@ -378,6 +375,7 @@
     const uniqueHashes = [...new Set(hashes)];
     const allStable = uniqueHashes.length === 1;
     appendSummary(allStable, uniqueHashes);
+    
     const persistResult = await persistTriangleStability(
       allStable,
       hashes,

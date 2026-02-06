@@ -226,6 +226,22 @@ def store_user_fingerprint(username, fingerprint_payload):
     )
 
 
+def store_system_timing(username, timing_record):
+    """
+    Save the total system timing (from fingerprint capture start to all tests complete).
+    """
+    username = (username or "").strip()
+    if not username:
+        return False, "Username is required"
+    if not isinstance(timing_record, dict):
+        return False, "Invalid timing data format"
+
+    return _update_user_record(
+        username,
+        lambda user: user.__setitem__("system_timing", timing_record),
+    )
+
+
 def append_triangle_stability(username, stability_record):
     """
     Record WebGL triangle stability results.
