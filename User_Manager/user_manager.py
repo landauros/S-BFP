@@ -2,8 +2,10 @@ import os, json, threading, tempfile, time
 from werkzeug.security import generate_password_hash, check_password_hash
 from copy import deepcopy
 
+from config import DATA_DIR as CONFIG_DATA_DIR
+
 # Data paths
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+DATA_DIR = str(CONFIG_DATA_DIR)
 os.makedirs(DATA_DIR, exist_ok=True)
 USERS_DIR = os.path.join(DATA_DIR, 'users')
 os.makedirs(USERS_DIR, exist_ok=True)
@@ -121,7 +123,7 @@ def _update_user_record(username, mutator):
 # User operations
 # ---------------------------
 
-def register_user(username, password, *, auto_generated=False):
+def register_user(username, password, *, auto_generated=False, consent=None):
     """
     Register a user and return (True, username) or (False, error_message).
     If auto_generated is True, the supplied password is assumed to already satisfy
@@ -150,6 +152,8 @@ def register_user(username, password, *, auto_generated=False):
             "password_hash": pwd_hash,
             "created_at": time.strftime('%Y-%m-%d %H:%M:%S'),
         }
+        if consent:
+            user_payload["consent"] = deepcopy(consent)
         target_path = os.path.join(USERS_DIR, f"{username}.json")
         try:
             _write_user_atomic(target_path, user_payload)

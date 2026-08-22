@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import struct
 from datetime import datetime
+from pathlib import Path
 
 import flask
 from flask import Blueprint, jsonify
 
+from config import derive_secret
 from drbg import HMACDRBG
 
 audio_bp = Blueprint(
@@ -17,7 +19,8 @@ audio_bp = Blueprint(
     static_folder="static",
 )
 
-_ENTROPY = b"asdfasdgsadg"
+_BASE_DIR = Path(__file__).resolve().parent
+_ENTROPY = derive_secret("audio")
 
 
 def _build_drbg(seed: str, salt: bytes) -> HMACDRBG:
@@ -32,7 +35,7 @@ def _build_drbg(seed: str, salt: bytes) -> HMACDRBG:
 @audio_bp.route("/")
 def index() -> flask.Response:
     """Serve the streamlined audio stability UI."""
-    return flask.send_file("Audio/index.html")
+    return flask.send_file(_BASE_DIR / "index.html")
 
 
 @audio_bp.route(
@@ -52,7 +55,7 @@ def get_snippets_config(
 ):
     """Return deterministic snippet gaps/frequencies for the requested seed."""
 
-    n = max(1, n)
+    n = min(128, max(1, n))
     min_length = max(1, min_length)
     max_length = max(min_length, max_length)
     min_frequency = max(1, min_frequency)

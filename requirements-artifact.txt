@@ -1,0 +1,2 @@
+# Optional dependency used only to rebuild artifact/ARTIFACT_APPENDIX.pdf
+reportlab==5.0.0

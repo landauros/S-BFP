@@ -1,16 +1,18 @@
 import base64
-import hmac
 import hashlib
+import hmac
 import io
-import flask
-from typing import Optional, List, Tuple
-from flask import jsonify, request, Blueprint, render_template, json
-import os, struct
-from datetime import datetime
 import math
+import struct
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+import flask
+from flask import Blueprint, jsonify, request
 from PIL import Image
-import numpy as np
-from scipy import ndimage
+
+from config import derive_secret
 
 
 class HMACDRBG:
@@ -437,7 +439,8 @@ def tighten_image(img: Image.Image) -> Image.Image:
     return rgba_img.crop(bbox) if bbox else rgba_img
 
 
-entropy = b"o\xd6\xb6m\xd0{\xbfRy\xbc[\xa2\x1f\xb8\x0c\x92\xb4z+\x9b\xf7c\xdf\xf2\xd9\x1fhP\xf6h4\xdb"  # os.urandom(32)
+_BASE_DIR = Path(__file__).resolve().parent
+entropy = derive_secret("webgl")
 db = {}
 # app = flask.Flask(__name__)
 webgl_bp = Blueprint(
@@ -447,21 +450,24 @@ webgl_bp = Blueprint(
 
 @webgl_bp.route("/")
 def index():
-    return flask.send_file("webgl/stability.html")
+    return flask.send_file(_BASE_DIR / "stability.html")
 
 
 @webgl_bp.route("/utils/<path:filename>")
 def serve_utils(filename):
-    return flask.send_file(f"webgl/utils/{filename}")
+    return flask.send_from_directory(_BASE_DIR / "utils", filename)
 
 
 @webgl_bp.route("/preliminary_fingerprint.js")
 def serve_fingerprint():
-    return flask.send_file("webgl/preliminary_fingerprint.js")
+    return flask.send_file(_BASE_DIR / "preliminary_fingerprint.js")
 
 
 @webgl_bp.route("/get_triangle/<string:seed>/<int:width>/<int:height>")
 def get_triangle(seed, width, height):
+    if width < 72 or height < 136 or width > 8192 or height > 8192:
+        return jsonify({"error": "unsupported canvas dimensions"}), 400
+
     seed = seed.encode("utf-8")
     timestamp = str(datetime.now().timestamp())
     drbg_pos = HMACDRBG(
@@ -485,6 +491,11 @@ def get_triangle(seed, width, height):
 
 @webgl_bp.route("/get_triangles/<int:n>/<string:seed>/<int:width>/<int:height>")
 def get_triangles(n, seed, width, height):
+    if not (1 <= n <= 128):
+        return jsonify({"error": "n must be between 1 and 128"}), 400
+    if width < 72 or height < 136 or width > 8192 or height > 8192:
+        return jsonify({"error": "unsupported canvas dimensions"}), 400
+
     seed = seed.encode("utf-8")
     timestamp = str(datetime.now().timestamp())
     drbg_pos = HMACDRBG(
@@ -509,18 +520,6 @@ def get_triangles(n, seed, width, height):
         return jsonify({"error": f"Error generating triangles: {str(e)}"}), 500
 
 
-def _load_users():
-    """Load user list."""
-    if not os.path.exists(USERS_FILE):
-        return []
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data if isinstance(data, list) else []
-    except Exception:
-        return []
-
-
 @webgl_bp.route("/upload_img/<string:seed>", methods=["POST"])
 def upload_img(seed):
     seed = seed.encode("utf-8")
@@ -530,18 +529,17 @@ def upload_img(seed):
     if not data_url:
         return jsonify({"error": "No image data provided"}), 400
 
-    try:
-        if data_url.startswith(b"data:image"):
-            # Find the comma and get the base64 part
-            comma_index = data_url.find(b",")
-            if comma_index != -1:
-                encoded = data_url[comma_index + 1 :]
-    except ValueError:
+    if not data_url.startswith(b"data:image"):
         return jsonify({"error": "Invalid data URL"}), 400
+    comma_index = data_url.find(b",")
+    if comma_index == -1:
+        return jsonify({"error": "Invalid data URL"}), 400
+    encoded = data_url[comma_index + 1 :]
 
     try:
-        raw_bytes = base64.b64decode(encoded)
+        raw_bytes = base64.b64decode(encoded, validate=True)
         img = Image.open(io.BytesIO(raw_bytes))
+        img.load()
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": f"Invalid image data: {exc}"}), 400
 

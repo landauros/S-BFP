@@ -110,7 +110,8 @@
     <script type="module">
       import { getSeedString } from "/webgl/preliminary_fingerprint.js";
 
-      const TEST_RUNS = 1;
+      // The paper evaluates stability over ten repeated audio renderings.
+      const TEST_RUNS = 10;
       const SNIPPET_COUNT = 9;
       const SAMPLE_RATE = 44100;
       const SNIPPET_DURATION_MS = 100;

@@ -5,12 +5,14 @@ import os
 import string
 import struct
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import flask
 from PIL import Image
 from flask import Blueprint, jsonify, request
 
+from config import derive_secret
 from drbg import HMACDRBG
 
 canvas_bp = Blueprint(
@@ -20,15 +22,14 @@ canvas_bp = Blueprint(
     static_folder="static",
 )
 
-# Matches the standalone canvas_server entropy to keep identical behaviour.
-entropy = b"0\x01\xe5`\xf1&\xf1\x93\xab\x10Ol\x0ezw^\xea}\xe2#\xc4\xd8s^\x1bk\x0c\xcd\x07S\x08\r"
-print(entropy)
+_BASE_DIR = Path(__file__).resolve().parent
+entropy = derive_secret("canvas")
 
 # Store draw configurations keyed by seed bytes so the upload route can reuse them.
 db = {}
 
 # Ensure debug crops can be written just like the reference server.
-_UPLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "upload")
+_UPLOAD_DIR = os.path.join(_BASE_DIR, "upload")
 os.makedirs(_UPLOAD_DIR, exist_ok=True)
 
 
@@ -82,11 +83,16 @@ def tighten_image(img: Image.Image, threshold: int = 245) -> Image.Image:
 
 @canvas_bp.route("/")
 def index():
-    return flask.send_file("Canvas/index.html")
+    return flask.send_file(_BASE_DIR / "index.html")
 
 
 @canvas_bp.route("/get_string_config/<string:seed>/<int:n>/<int:width>/<int:height>")
 def get_string_config(seed: str, n: int, width: int, height: int):
+    if not (1 <= n <= 128):
+        return jsonify({"error": "n must be between 1 and 128"}), 400
+    if width < 962 or height < 128 or width > 8192 or height > 8192:
+        return jsonify({"error": "unsupported canvas dimensions"}), 400
+
     seed_bytes = seed.encode("utf-8")
     drbg_positions = HMACDRBG(
         entropy_input=entropy,
@@ -133,8 +139,9 @@ def upload_img(seed: str):
         return jsonify({"error": "Invalid data URL"}), 400
 
     try:
-        raw_bytes = base64.b64decode(encoded)
+        raw_bytes = base64.b64decode(encoded, validate=True)
         img = Image.open(io.BytesIO(raw_bytes))
+        img.load()
 
     except Exception as exc:  # noqa: BLE001
         return jsonify({"error": f"Invalid image data: {exc}"}), 400
@@ -151,7 +158,5 @@ def upload_img(seed: str):
         tightened_img = tighten_image(cropped_img)
         hash_value = hashlib.sha256(tightened_img.tobytes()).hexdigest()
         hashes.append(hash_value)
-        print(string_val, hash_value)
-
     final_hash = hashlib.sha256("".join(sorted(hashes)).encode()).hexdigest()
     return jsonify({"message": "Image uploaded successfully", "hash": final_hash})

@@ -1,5 +1,3 @@
-import csv
-import os
 import secrets
 import string
 import threading
@@ -7,10 +5,20 @@ import time
 import webbrowser
 from datetime import datetime
 
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, jsonify, render_template, request, session
 from Webgl.routes import webgl_bp
 from Audio.routes import audio_bp
 from Canvas.routes import canvas_bp
+from config import (
+    DEBUG,
+    FLASK_SESSION_SECRET,
+    HOST,
+    MAX_CONTENT_LENGTH,
+    OPEN_BROWSER,
+    PORT,
+    STORE_CLIENT_METADATA,
+    STORE_RAW_FINGERPRINT,
+)
 from User_Manager.user_manager import (
     register_user,
     authenticate_user,
@@ -23,15 +31,13 @@ from User_Manager.user_manager import (
     append_canvas_stability,
     set_canvas_baseline,
 )
-fix_hash = 0
-current_user = None  # currently active username
-auth_status = True
-total_auth = True
-global_hashes = []
-device_info = {}
-request_count = 0      # ✅ counter: track /analyze calls
-SAVE_INTERVAL = 10     # ✅ persist CSV every 10 requests
 app = Flask(__name__)
+app.config.update(
+    MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
+    SECRET_KEY=FLASK_SESSION_SECRET,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
 # Register blueprints
 app.register_blueprint(webgl_bp, url_prefix='/webgl')
 app.register_blueprint(audio_bp, url_prefix='/audio')
@@ -73,6 +79,9 @@ def _expire_session_if_needed(now_ts=None):
 def _validate_session_owner(username: str):
     """Ensure the requesting user matches the active exclusive session."""
     username = (username or "").strip()
+    authenticated_user = (session.get("authenticated_user") or "").strip()
+    if not authenticated_user or authenticated_user.lower() != username.lower():
+        return False, "Authentication is required for this user."
     with _session_lock:
         _expire_session_if_needed()
         owner = _session_state["owner"]
@@ -102,7 +111,26 @@ def generate_secure_password(length: int = 16) -> str:
 
 def open_browser():
     time.sleep(1.5)
-    webbrowser.open_new('http://127.0.0.1:5001/')
+    webbrowser.open_new(f'http://127.0.0.1:{PORT}/')
+
+
+def _public_fingerprint_details(details):
+    """Retain coarse environment fields while excluding raw rendered images."""
+
+    if not isinstance(details, dict):
+        return None
+    allowed = (
+        "screenWidth",
+        "screenHeight",
+        "screenColorDepth",
+        "screenPixelDepth",
+        "language",
+        "platform",
+        "hardwareConcurrency",
+    )
+    return {key: details.get(key) for key in allowed if key in details}
+
+
 @app.route('/')
 def index():
     return render_template('base.html')
@@ -111,12 +139,25 @@ def index():
 def register():
     data = request.get_json(silent=True) or {}
     username = (data.get('username') or "").strip()
+    if data.get("consent") is not True:
+        return jsonify(status='error', error="Informed consent is required"), 400
     generated_password = generate_secure_password()
-    ok, msg = register_user(username, generated_password, auto_generated=True)
+    consent = {
+        "accepted": True,
+        "version": "2026-08-22",
+        "recorded_at": datetime.now().astimezone().isoformat(),
+    }
+    ok, msg = register_user(
+        username,
+        generated_password,
+        auto_generated=True,
+        consent=consent,
+    )
     if ok:
+        session["authenticated_user"] = msg
         return jsonify(status='ok', username=msg, password=generated_password)
     else:
-        return jsonify(status='error', error=msg)
+        return jsonify(status='error', error=msg), 400
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -125,9 +166,10 @@ def login():
     password = (data.get('password') or "").strip()
     ok, msg = authenticate_user(username,password)
     if ok:
+        session["authenticated_user"] = msg
         return jsonify(status='ok', username=msg)
     else:
-        return jsonify(status='error', error=msg)
+        return jsonify(status='error', error=msg), 401
 
 
 @app.route('/session/acquire', methods=['POST'])
@@ -136,6 +178,9 @@ def acquire_session():
     username = (data.get("username") or "").strip()
     if not username:
         return jsonify(status='error', error="Username is required"), 400
+    authenticated_user = (session.get("authenticated_user") or "").strip()
+    if not authenticated_user or authenticated_user.lower() != username.lower():
+        return jsonify(status='error', error="Authentication is required"), 401
 
     now_ts = time.time()
     with _session_lock:
@@ -231,11 +276,16 @@ def capture_fingerprint():
     payload = {
         "captured_at": captured_at,
         "hash": data.get("fingerprintHash"),
-        "fingerprint_string": data.get("fingerprintString"),
-        "details": fingerprint_details,
-        "client_ip": request.remote_addr,
-        "user_agent": request.headers.get("User-Agent"),
+        "fingerprint_string": data.get("fingerprintString") if STORE_RAW_FINGERPRINT else None,
+        "details": (
+            fingerprint_details
+            if STORE_RAW_FINGERPRINT
+            else _public_fingerprint_details(fingerprint_details)
+        ),
     }
+    if STORE_CLIENT_METADATA:
+        payload["client_ip"] = request.remote_addr
+        payload["user_agent"] = request.headers.get("User-Agent")
 
     ok, msg = store_user_fingerprint(username, payload)
     if ok:
@@ -282,8 +332,9 @@ def record_triangle_stability():
         "runs": runs_payload,
         "hashes": hashes,
         "mismatch_runs": mismatches,
-        "client_ip": request.remote_addr,
     }
+    if STORE_CLIENT_METADATA:
+        record["client_ip"] = request.remote_addr
 
     ok, msg = append_triangle_stability(username, record)
     if ok:
@@ -358,8 +409,9 @@ def record_audio_stability():
         "mismatch_runs": mismatches,
         "stability_rate": data.get("stabilityRate"),
         "total_runs": len(hashes),
-        "client_ip": request.remote_addr,
     }
+    if STORE_CLIENT_METADATA:
+        record["client_ip"] = request.remote_addr
 
     ok, msg = append_audio_stability(username, record)
     if ok:
@@ -435,8 +487,9 @@ def record_canvas_stability():
         "runs": runs_payload,
         "hashes": hashes,
         "mismatch_runs": mismatches,
-        "client_ip": request.remote_addr,
     }
+    if STORE_CLIENT_METADATA:
+        record["client_ip"] = request.remote_addr
 
     config_meta = data.get("drawConfig")
     if config_meta is not None:
@@ -462,8 +515,7 @@ def record_canvas_stability():
 
 
 if __name__ == '__main__':
+    if OPEN_BROWSER:
+        threading.Thread(target=open_browser, daemon=True).start()
 
-
-    threading.Thread(target=open_browser).start()
-
-    app.run(debug=True, port=5001,use_reloader=False)
+    app.run(host=HOST, debug=DEBUG, port=PORT, use_reloader=False)

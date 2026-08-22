@@ -3,12 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <title>WebGL Demo</title>
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/gl-matrix/2.8.1/gl-matrix-min.js"
-      integrity="sha512-zhHQR0/H5SEBL3Wn6yYSaTTZej12z0hVZKOv3TwCUXT1z5qeqGcXJLLrbERYRScEDDpYIJhPC1fk31gqR783iQ=="
-      crossorigin="anonymous"
-      defer
-    ></script>
+    <script src="/webgl/utils/mat4.js"></script>
 
     <style>
       .container {
@@ -98,7 +93,8 @@
   import { getSeedString } from "./preliminary_fingerprint.js";
 
   const TRIANGLE_COUNT = 8;
-  const TEST_RUNS = 1;
+  // The paper evaluates stability over ten repeated WebGL renderings.
+  const TEST_RUNS = 10;
 
   const canvas = document.getElementById("Canvas");
   const hashCanvas = document.getElementById("hash");

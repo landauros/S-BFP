@@ -92,6 +92,29 @@
       margin: 4px 0 0;
       min-height: 18px;
     }
+    .consent-panel {
+      display: none;
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f8fafc;
+      text-align: left;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #475569;
+    }
+    .consent-panel label {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .consent-panel input {
+      width: auto;
+      margin: 2px 0 0;
+      flex: 0 0 auto;
+    }
 
     .generated-password {
       display: none;
@@ -485,6 +508,8 @@
       const generatedPasswordContainer = document.getElementById("generatedPasswordContainer");
       const generatedPasswordValue = document.getElementById("generatedPasswordValue");
       const copyPasswordBtn = document.getElementById("copyPasswordBtn");
+      const consentPanel = document.getElementById("consentPanel");
+      const consentCheckbox = document.getElementById("consentCheckbox");
 
       let mode = "login";
       let registrationFinalized = false;
@@ -569,6 +594,7 @@
             passwordInput.placeholder = "Password";
           }
           if (helper) helper.textContent = "";
+          if (consentPanel) consentPanel.style.display = "none";
         } else {
           title.textContent = "Create Account";
           actionBtn.textContent = "Register";
@@ -581,6 +607,8 @@
             helper.textContent =
               "A strong password will be generated automatically. It will appear below after registration.";
           }
+          if (consentPanel) consentPanel.style.display = "block";
+          if (consentCheckbox) consentCheckbox.checked = false;
         }
       }
 
@@ -606,9 +634,15 @@
             alert("Please enter your password.");
             return;
           }
+          if (mode === "register" && (!consentCheckbox || !consentCheckbox.checked)) {
+            alert("Please review and accept the research data-collection notice before registering.");
+            return;
+          }
 
           const endpoint = mode === "login" ? "/login" : "/register";
-          const payload = mode === "login" ? { username, password } : { username };
+          const payload = mode === "login"
+            ? { username, password }
+            : { username, consent: true };
 
           try {
             const res = await fetch(endpoint, {
@@ -717,6 +751,16 @@
         <input id="passwordInput" type="password" placeholder="Password">
       </div>
       <p id="authHelper" class="auth-helper"></p>
+      <div id="consentPanel" class="consent-panel">
+        <label>
+          <input id="consentCheckbox" type="checkbox">
+          <span>
+            I voluntarily consent to this research demo collecting pseudonymous browser-rendering
+            hashes and coarse device/browser characteristics for evaluating S-BFP stability. The
+            public artifact excludes IP addresses, raw rendered images, and full User-Agent strings.
+          </span>
+        </label>
+      </div>
       <div id="generatedPasswordContainer" class="generated-password">
         <label>Assigned Password</label>
         <div id="generatedPasswordValue" class="generated-password-value">—</div>
