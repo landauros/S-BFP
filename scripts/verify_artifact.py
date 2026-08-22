@@ -37,6 +37,22 @@ FORBIDDEN_DATA_KEYS = {
     "hashes",
     "seed",
 }
+RETIRED_TERMS = ("web" + "gl", "tri" + "angle")
+TEXT_SUFFIXES = {
+    ".css",
+    ".html",
+    ".js",
+    ".json",
+    ".jsonl",
+    ".md",
+    ".ps1",
+    ".py",
+    ".sh",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
 
 
 def stripped_name(name: str) -> str:
@@ -76,6 +92,14 @@ def main() -> None:
         )
         if forbidden:
             raise SystemExit(f"Restricted/runtime paths present: {forbidden[:10]}")
+        for info, relative in zip(archive.infolist(), names):
+            lowered_name = relative.casefold()
+            if any(term in lowered_name for term in RETIRED_TERMS):
+                raise SystemExit(f"Retired modality path present: {relative}")
+            if PurePosixPath(relative).suffix.casefold() in TEXT_SUFFIXES:
+                text = archive.read(info.filename).decode("utf-8", errors="ignore").casefold()
+                if any(term in text for term in RETIRED_TERMS):
+                    raise SystemExit(f"Retired modality text present: {relative}")
 
         public_name = "S-BFP/data/public/records.jsonl"
         rows = [
@@ -91,6 +115,8 @@ def main() -> None:
             leaked = FORBIDDEN_DATA_KEYS.intersection(walk_keys(row))
             if leaked:
                 raise SystemExit(f"Forbidden public-data keys at row {index}: {leaked}")
+            if set(row.get("modalities", {})) != {"audio", "canvas"}:
+                raise SystemExit(f"Unexpected modalities at row {index}")
 
         manifest = archive.read("S-BFP/SHA256SUMS").decode("utf-8").splitlines()
         for line in manifest:

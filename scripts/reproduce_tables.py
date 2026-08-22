@@ -13,7 +13,6 @@ from pathlib import Path
 EXPECTED_STABILITY = {
     "Audio": (206, 206),
     "Canvas": (196, 198),
-    "WebGL": (177, 193),
 }
 
 EXPECTED_ENVIRONMENTS = [
@@ -57,7 +56,7 @@ def main() -> None:
     args = parser.parse_args()
 
     records = load_records(args.input)
-    modality_keys = (("Audio", "audio"), ("Canvas", "canvas"), ("WebGL", "webgl"))
+    modality_keys = (("Audio", "audio"), ("Canvas", "canvas"))
     stability_rows = []
     actual_stability = {}
     for label, key in modality_keys:
@@ -104,7 +103,7 @@ def main() -> None:
             )
         if len(records) != 213:
             raise SystemExit(f"Participant count mismatch: expected 213, got {len(records)}")
-        print("Verified: Tables 2 and 3 match the paper exactly.")
+        print("Verified: the retained Audio/Canvas rows and Table 3 match the paper.")
 
 
 if __name__ == "__main__":

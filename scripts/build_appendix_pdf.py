@@ -113,11 +113,11 @@ def main() -> None:
         ),
         Paragraph("Artifact overview", heading),
         Paragraph(
-            "S-BFP is a Flask and browser research prototype that turns a static browser fingerprint into a server-controlled challenge-response measurement. A deterministic random bit generator derives device-specific primitives, while a session input changes their spatial arrangement. The artifact implements Canvas text, Web Audio waveforms, and WebGL triangles.",
+            "S-BFP is a Flask and browser research prototype that turns a static browser fingerprint into a server-controlled challenge-response measurement. A deterministic random bit generator derives device-specific primitives, while a session input changes their spatial arrangement. The artifact implements Canvas text and Web Audio waveforms.",
             body,
         ),
         Paragraph(
-            "The package supports (1) functional inspection of all three browser workflows and (2) independent recomputation of the paper's stability and environment tables from a de-identified 213-participant summary dataset.",
+            "The package supports (1) functional inspection of both browser workflows and (2) independent recomputation of the retained stability rows and environment table from a de-identified 213-participant summary dataset.",
             body,
         ),
         Paragraph("Claims and evaluation mapping", heading),
@@ -127,9 +127,8 @@ def main() -> None:
         ["Paper claim", "Evaluation action", "Expected result"],
         ["Audio stability", "Run reproduction script", "206/206 (100.0%)"],
         ["Canvas stability", "Run reproduction script", "196/198 (99.0%)"],
-        ["WebGL stability", "Run reproduction script", "177/193 (91.7%)"],
         ["Cohort distribution", "Inspect generated Table 3 CSV", "213 devices; exact row match"],
-        ["Executable workflow", "Run all three browser panels", "Repeated render and stability summary"],
+        ["Executable workflow", "Run both browser panels", "Repeated render and stability summary"],
     ]
     table = Table(table_data, colWidths=[1.55 * inch, 2.8 * inch, 2.65 * inch], repeatRows=1)
     table.setStyle(
@@ -157,13 +156,13 @@ def main() -> None:
             Spacer(1, 6),
             Paragraph("Scope", heading),
             Paragraph(
-                "The artifact does not implement a complete production risk engine and does not claim to prove security against every adaptive attacker. WebGL instability is an evaluated result, not necessarily an execution failure. The restricted per-participant source collection is not part of the release package.",
+                "The artifact does not implement a complete production risk engine and does not claim to prove security against every adaptive attacker. The restricted per-participant source collection is not part of the release package.",
                 body,
             ),
             PageBreak(),
             Paragraph("Requirements and installation", heading),
             Paragraph(
-                "Hardware: any x86-64 or ARM64 CPU, 1 GiB free memory, and about 300 MiB disk for native use. A discrete GPU is not required. Software: Python 3.11-3.13 and a current browser with Canvas, Web Audio, and WebGL. Docker with Compose v2 is optional.",
+                "Hardware: any x86-64 or ARM64 CPU, 1 GiB free memory, and about 300 MiB disk for native use. A discrete GPU is not required. Software: Python 3.11-3.13 and a current browser with Canvas and Web Audio. Docker with Compose v2 is optional.",
                 body,
             ),
             Paragraph("Windows PowerShell", heading),
@@ -178,15 +177,15 @@ def main() -> None:
             ),
             Paragraph("Functional evaluation", heading),
             Paragraph(
-                "1. Select Register and enter a pseudonymous username of 3-20 letters, digits, or underscores.<br/>2. Read and affirm the consent notice, then save the generated password.<br/>3. Acquire the exclusive test session.<br/>4. Run Canvas, Audio, and WebGL. Canvas performs five repetitions; Audio and WebGL perform ten.<br/>5. Confirm that every panel presents a completion message. A changed hash is a legitimate instability result.<br/>6. With default settings, the new runtime record must not contain an IP address, full user-agent string, or raw Canvas fingerprint.",
+                "1. Select Register and enter a pseudonymous username of 3-20 letters, digits, or underscores.<br/>2. Read and affirm the consent notice, then save the generated password.<br/>3. Acquire the exclusive test session.<br/>4. Run Canvas and Audio. Canvas performs five repetitions; Audio performs ten.<br/>5. Confirm that both panels present a completion message. A changed hash is a legitimate instability result.<br/>6. With default settings, the new runtime record must not contain an IP address, full user-agent string, or raw Canvas fingerprint.",
                 body,
             ),
+            PageBreak(),
             Paragraph("Paper-table reproduction", heading),
             Paragraph("python scripts/reproduce_tables.py --verify-paper", code),
-            PageBreak(),
             Paragraph("Expected reproduction result", heading),
             Paragraph(
-                "Expected values: Audio 206/206; Canvas 196/198; WebGL 177/193; environment total 213.",
+                "Expected values: Audio 206/206; Canvas 196/198; environment total 213.",
                 body,
             ),
             Paragraph("Automated and package checks", heading),
@@ -209,7 +208,7 @@ def main() -> None:
             ),
             Paragraph("Limitations and troubleshooting", heading),
             Paragraph(
-                "WebGL depends on the evaluator's browser and graphics stack. If unavailable, enable browser acceleration or use a current Chromium/Firefox build; aggregate reproduction does not require WebGL. If port 5001 is occupied, set S_BFP_PORT. Docker reproduces the server environment, not the host browser renderer. The process-local session coordinator supports one active evaluator and is not a multi-worker production design.",
+                "If port 5001 is occupied, set S_BFP_PORT. Docker reproduces the server environment, not the host browser audio or font stack. The process-local session coordinator supports one active evaluator and is not a multi-worker production design.",
                 body,
             ),
             Paragraph("Submission notes", heading),

@@ -53,10 +53,7 @@ class ArtifactApplicationTests(unittest.TestCase):
     def test_pages_and_static_assets(self):
         for route in (
             "/",
-            "/webgl/",
-            "/webgl/utils/initShader.js",
-            "/webgl/utils/mat4.js",
-            "/webgl/preliminary_fingerprint.js",
+            "/static/preliminary_fingerprint.js",
             "/audio/",
             "/canvas/",
         ):
@@ -102,17 +99,6 @@ class ArtifactApplicationTests(unittest.TestCase):
         self.assertEqual(login.status_code, 200)
 
     def test_rendering_configuration_and_upload_routes(self):
-        webgl = self.client.get("/webgl/get_triangles/5/test-seed/1200/900")
-        self.assertEqual(webgl.status_code, 200)
-        self.assertEqual(len(webgl.get_json()["triangle"]), 5)
-
-        webgl_upload = self.client.post(
-            "/webgl/upload_img/test-seed",
-            data=png_data_url(1200, 900).encode("ascii"),
-        )
-        self.assertEqual(webgl_upload.status_code, 200)
-        self.assertIn("hash", webgl_upload.get_json())
-
         audio = self.client.get(
             "/audio/get_snippets_config/test-seed/100/44100/9/20/80/200/2000"
         )
@@ -150,7 +136,6 @@ class ArtifactApplicationTests(unittest.TestCase):
         self.assertEqual(fingerprint.status_code, 200)
 
         endpoints = {
-            "/user/triangle_stability": [{"hash": "triangle"}, {"hash": "triangle"}],
             "/user/audio_stability": [
                 {"waveformHash": "audio"},
                 {"waveformHash": "audio"},

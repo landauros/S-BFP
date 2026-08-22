@@ -4,9 +4,9 @@
 
 This artifact contains the implementation and de-identified evaluation material
 for S-BFP, a stochastic challenge-response browser fingerprinting prototype. It
-supports functional inspection of the Canvas, Web Audio, and WebGL workflows and
-reproduces the stability and environment distributions reported in paper Tables
-2 and 3.
+supports functional inspection of the Canvas and Web Audio workflows and
+reproduces the retained stability rows and environment distribution reported in
+paper Tables 2 and 3.
 
 ## Scope and claims
 
@@ -14,9 +14,8 @@ reproduces the stability and environment distributions reported in paper Tables
 | --- | --- | --- |
 | Audio stability | `python scripts/reproduce_tables.py --verify-paper` | 206/206, 100.0% |
 | Canvas stability | same command | 196/198, 99.0% |
-| WebGL stability | same command | 177/193, 91.7% |
 | Cohort size and environment distribution | generated `results/table3_environments.csv` | 213 devices; rows match paper Table 3 |
-| Stochastic browser workflow is executable | register in the web UI and run all three panels | each panel renders repeated challenges and reports a hash-stability summary |
+| Stochastic browser workflow is executable | register in the web UI and run both panels | each panel renders repeated challenges and reports a hash-stability summary |
 | Deterministic server challenge generation | automated test suite | repeated endpoint configuration is well formed and all routes pass |
 
 The artifact does not claim to reproduce a production risk engine or to prove
@@ -30,8 +29,7 @@ restricted source collection.
 - Disk: 300 MiB for a native environment or about 500 MiB for Docker.
 - OS: Windows 10/11, current Linux, or current macOS.
 - Native runtime: Python 3.11–3.13 and `pip`.
-- Browser: current Chromium, Firefox, or Safari with Canvas, Web Audio, and
-  WebGL enabled. A discrete GPU is not required.
+- Browser: current Chromium, Firefox, or Safari with Canvas and Web Audio.
 - Optional: Docker Engine with Compose v2.
 
 The aggregate reproduction is CPU-only and typically finishes in under one
@@ -68,8 +66,8 @@ Open `http://127.0.0.1:5001/`. Native startup may open it automatically.
    underscores.
 2. Read and affirm the consent notice. Save the generated password.
 3. Acquire the test session when prompted.
-4. Run Canvas, Audio, and WebGL. The panels perform five Canvas repetitions and
-   ten Audio/WebGL repetitions to match the collection configuration.
+4. Run Canvas and Audio. The panels perform five Canvas repetitions and ten
+   Audio repetitions to match the collection configuration.
 5. Confirm that every panel presents a completion message. Hardware differences
    may legitimately cause unstable hashes; this is an experimental outcome, not
    an execution failure.
@@ -85,9 +83,9 @@ Run:
 python scripts/reproduce_tables.py --verify-paper
 ```
 
-Expected terminal values are 206/206 Audio, 196/198 Canvas, 177/193 WebGL,
-213 environments, followed by `Verified: Tables 2 and 3 match the paper
-exactly.` CSV outputs appear in `results/`.
+Expected terminal values are 206/206 Audio, 196/198 Canvas, and 213 environments,
+followed by `Verified: the retained Audio/Canvas rows and Table 3 match the
+paper.` CSV outputs appear in `results/`.
 
 ## Automated checks
 
@@ -110,8 +108,6 @@ hashes, images, and passwords are omitted. See `ETHICS_AND_DATA.md`.
 ## Troubleshooting
 
 - If port 5001 is occupied, set `S_BFP_PORT` to another local port.
-- If WebGL is unavailable, enable browser hardware acceleration or use a current
-  Chromium/Firefox build. Table reproduction does not require WebGL.
 - If the browser does not open, navigate to the printed local URL manually.
 - If Docker cannot access the service, confirm the Compose port mapping and that
   `S_BFP_HOST=0.0.0.0` is present in `docker-compose.yml`.

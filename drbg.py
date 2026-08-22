@@ -1,10 +1,6 @@
 import hmac
 import hashlib
-import flask
 from typing import Optional
-from flask import jsonify
-import os, struct
-from datetime import datetime
 
 
 class HMACDRBG:
@@ -139,75 +135,3 @@ class HMACDRBG:
 
     def random_bytes(self, n: int) -> bytes:
         return self.generate(n)
-
-
-# -------------------------------
-# Example usage
-# -------------------------------
-if __name__ == "__main__":
-    # # You should supply high-quality entropy_input and nonce.
-    # # For deterministic testing, fixed bytes are fine; for real use, draw from os.urandom.
-    # # true random input, secret seed
-    # entropy = b"example-entropy-32+bytes-is-good---"
-    # # updated regularly (per month or something)
-    # nonce = b"2025-11"
-    # # Input from preliminary fingerprinting
-    # pers = b"asdf"
-
-    # drbg = HMACDRBG(entropy_input=entropy, nonce=nonce, personalization_string=pers)
-
-    # # # Generate bytes
-    # # token = drbg.generate(16)  # 16 pseudorandom bytes
-    # # print("bytes:", token.hex())
-
-    # # # Uniform integers in [0, 10]
-    # # ints = [drbg.randint(0, 10) for _ in range(20)]
-    # # print("ints:", ints)
-
-    # floats = [drbg.uniform(0, 20) for _ in range(3)]
-    # print("floats:", floats)
-
-    # Reseed when desired (e.g., new entropy)
-    # drbg.reseed(entropy_input=b"fresh-entropy", additional_input=b"optional-AAD")
-    # print("post-reseed byte:", drbg.generate(1).hex())
-    entropy = os.urandom(32)
-    app = flask.Flask(__name__)
-
-    @app.route("/")
-    def index():
-        return flask.send_file("stability.html")
-
-    @app.route("/utils/<path:filename>")
-    def serve_utils(filename):
-        return flask.send_file(f"utils/{filename}")
-
-    @app.route("/preliminary_fingerprint.js")
-    def serve_fingerprint():
-        return flask.send_file("preliminary_fingerprint.js")
-
-    @app.route("/get_triangle/<string:seed>/<int:max_width>/<int:max_height>")
-    def get_triangle(seed, max_width, max_height):
-        seed = seed.encode("utf-8")
-        timestamp = str(datetime.now().timestamp())
-        drbg1 = HMACDRBG(
-            entropy_input=entropy,
-            nonce=struct.pack("d", float(timestamp)),
-            personalization_string=seed,
-        )
-        triangle = [
-            drbg1.randint(0, max_width - 64),
-            drbg1.randint(64, max_height - 64),
-        ] * 3
-
-        drbg2 = HMACDRBG(
-            entropy_input=entropy,
-            nonce=datetime.now().strftime("%Y-%m").encode("utf-8"),
-            personalization_string=seed,
-        )
-        for i in range(1, 3):
-            triangle[i * 2] += drbg2.uniform(8, 64)
-            triangle[i * 2 + 1] += drbg2.uniform(-64, 64)
-
-        return jsonify({"triangle": triangle})
-
-    app.run(debug=True, port=5000, host="0.0.0.0")

@@ -6,7 +6,7 @@ every artifact and its access path rather than only a single generic link.
 ## Artifacts
 
 1. **S-BFP source artifact.** An anonymized repository containing the Flask
-   implementation, Canvas/Audio/WebGL browser experiments, HMAC-DRBG challenge
+   implementation, Canvas/Audio browser experiments, HMAC-DRBG challenge
    generator, pinned dependencies, container configuration, and automated tests.
    Anonymous review access: `[ANONYMOUS_ARTIFACT_URL]`. Permanent camera-ready
    archive: `[VERSIONED_DOI]`.
@@ -14,8 +14,8 @@ every artifact and its access path rather than only a single generic link.
    summaries containing coarse environment categories and modality stability
    aggregates, with no raw fingerprints or direct identifiers. It is included in
    the same archive under `data/public/records.jsonl`.
-3. **Evaluation scripts.** `scripts/reproduce_tables.py` regenerates Tables 2 and
-   3 and checks the reported values. `scripts/build_artifact.py` and
+3. **Evaluation scripts.** `scripts/reproduce_tables.py` regenerates the retained
+   Audio/Canvas rows of Table 2 and all of Table 3. `scripts/build_artifact.py` and
    `scripts/verify_artifact.py` construct and audit the release bundle.
 4. **Documentation.** `README.md` provides setup and experiment instructions;
    `artifact/ARTIFACT_APPENDIX.md` maps paper claims to evaluation steps; and

@@ -51,7 +51,7 @@ class PublicDatasetTests(unittest.TestCase):
                 set(record), {"participant_id", "environment", "modalities"}
             )
             self.assertTrue(FORBIDDEN_KEYS.isdisjoint(set(all_keys(record))))
-            self.assertEqual(set(record["modalities"]), {"audio", "canvas", "webgl"})
+            self.assertEqual(set(record["modalities"]), {"audio", "canvas"})
 
 
 if __name__ == "__main__":

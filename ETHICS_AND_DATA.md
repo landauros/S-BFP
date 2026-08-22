@@ -26,8 +26,9 @@ public artifact service.
 
 ## Released evaluation data
 
-`data/public/records.jsonl` is a derived dataset designed to validate paper
-Tables 2 and 3 without exposing original measurements. It retains only:
+`data/public/records.jsonl` is a derived dataset designed to validate the
+retained Audio/Canvas rows of paper Table 2 and all of Table 3 without exposing
+original measurements. It retains only:
 
 - a newly assigned sequential participant ID;
 - coarse operating-system and browser categories;

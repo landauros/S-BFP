@@ -7,11 +7,10 @@ S-BFP turns a static browser fingerprint into a server-controlled,
 challenge-response measurement. A deterministic random bit generator (DRBG)
 derives device-specific rendering primitives from the preliminary fingerprint,
 while a second session-dependent input changes their spatial arrangement. The
-prototype evaluates three browser surfaces:
+prototype evaluates two browser surfaces:
 
 - **Canvas** — deterministic text content with session-varying positions;
 - **Web Audio** — deterministic oscillator configurations and waveform hashes;
-- **WebGL** — deterministic colored triangles with session-varying rendering.
 
 The browser renders each challenge repeatedly, hashes the result, and sends the
 stability outcome to the Flask server. The research goal is to make replay of a
@@ -30,7 +29,8 @@ This repository is organized for USENIX Security '26 artifact evaluation:
 - native Windows and POSIX setup/run scripts;
 - a Docker configuration for a reproducible service environment;
 - automated application tests;
-- a de-identified dataset and scripts that reproduce paper Tables 2 and 3;
+- a de-identified dataset and scripts that reproduce the retained Audio/Canvas
+  rows of paper Table 2 and all of Table 3;
 - a self-contained artifact appendix and Open Science statement draft;
 - an explicit data/ethics statement and a release-archive verifier.
 
@@ -45,7 +45,6 @@ access placeholders with the anonymous-review URL and permanent archive DOI.
 | `drbg.py` | HMAC-DRBG implementation used for deterministic challenge generation |
 | `Audio/` | Web Audio challenge generator and browser experiment |
 | `Canvas/` | Canvas text generator, renderer upload, cropping, and hashing |
-| `Webgl/` | WebGL triangle generator, renderer upload, cropping, and hashing |
 | `User_Manager/` | Per-user local persistence for newly collected demo results |
 | `data/public/` | De-identified, release-safe evaluation records |
 | `scripts/` | Setup, launch, reproduction, packaging, and verification tools |
@@ -54,8 +53,8 @@ access placeholders with the anonymous-review URL and permanent archive DOI.
 
 ## Quick start (native)
 
-Requirements: Python 3.11 or newer and a current desktop browser with Canvas,
-Web Audio, and WebGL enabled. No GPU is required; software WebGL is sufficient.
+Requirements: Python 3.11 or newer and a current desktop browser with Canvas and
+Web Audio enabled. No GPU is required.
 
 ### Windows PowerShell
 
@@ -76,7 +75,7 @@ sh scripts/run.sh
 Open <http://127.0.0.1:5001/> if the browser does not open automatically.
 Choose **Register**, enter a pseudonymous username, read and accept the consent
 notice, and save the generated password. After the session is acquired, run the
-Canvas, Audio, and WebGL panels. A successful modality ends with a stability
+Canvas and Audio panels. A successful modality ends with a stability
 summary and stores a local record under `User_Manager/data/users/`.
 
 ## Quick start (Docker)
@@ -105,9 +104,8 @@ Expected output:
 ```text
 Audio  206/206 (100.0%)
 Canvas 196/198 (99.0%)
-WebGL  177/193 (91.7%)
 Environment total: 213
-Verified: Tables 2 and 3 match the paper exactly.
+Verified: the retained Audio/Canvas rows and Table 3 match the paper.
 ```
 
 CSV versions are written to `results/table2_stability.csv` and
@@ -167,9 +165,7 @@ maintainer explicitly enables the corresponding environment variables.
 
 ## Known limitations
 
-- WebGL is measurably less stable than Audio and Canvas across environments; the
-  paper reports 91.7% stability for the evaluated cohort.
-- Results depend on browser, graphics/audio stack, fonts, and hardware. Container
+- Results depend on browser, audio stack, fonts, and hardware. Container
   execution reproduces the server, not the evaluator's browser rendering stack.
 - The current session coordinator is process-local and supports one active user;
   it is not appropriate for a multi-worker production deployment.

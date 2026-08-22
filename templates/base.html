@@ -200,7 +200,7 @@
   </style>
 
     <script type="module">
-    import { getFullFingerprint } from "/webgl/preliminary_fingerprint.js";
+    import { getFullFingerprint } from "/static/preliminary_fingerprint.js";
 
     async function captureFingerprint(username) {
       if (!username) return;
@@ -223,7 +223,6 @@
     }
 
     const testProgress = {
-      webgl: { status: "idle", message: "", serverStable: null },
       audio: { status: "idle", message: "", serverStable: null },
       canvas: { status: "idle", message: "", serverStable: null },
     };
@@ -403,7 +402,6 @@
     }
 
     function resetTestProgress() {
-      testProgress.webgl = { status: "pending", message: "", serverStable: null };
       testProgress.audio = { status: "pending", message: "", serverStable: null };
       testProgress.canvas = { status: "pending", message: "", serverStable: null };
       setStatusIcon(null);
@@ -717,12 +715,8 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       showRegisterPopup((username) => {
-        const webglFrame = document.getElementById("sys1");
         const audioFrame = document.getElementById("sys3");
         const canvasFrame = document.getElementById("sys4");
-        if (webglFrame) {
-          webglFrame.src = "/webgl/?autostart=1";
-        }
         if (audioFrame) {
           audioFrame.src = "/audio/?autostart=1";
         }
@@ -737,7 +731,6 @@
 <body>
   <h1>S-BFP Testing Platform</h1>
   <div style="display: flex; flex-wrap: wrap; gap: 2%; justify-content: center; margin: 0 auto 20px; max-width: 1500px;">
-    <iframe id="sys1" style="flex: 1 1 45%; min-width: 320px; height: 500px; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);"></iframe>
     <iframe id="sys3" style="flex: 1 1 45%; min-width: 320px; height: 500px; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);"></iframe>
     <iframe id="sys4" style="flex: 1 1 45%; min-width: 320px; height: 500px; border: none; border-radius: 12px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);"></iframe>
   </div>

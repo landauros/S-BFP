@@ -1,7 +1,8 @@
 # Public evaluation dataset
 
 `records.jsonl` contains 213 de-identified participant summaries, one JSON object
-per line. It is sufficient to reproduce paper Tables 2 and 3.
+per line. It reproduces the retained Audio/Canvas rows of paper Table 2 and all
+of Table 3.
 
 Schema:
 
@@ -11,8 +12,7 @@ Schema:
   "environment": {"os": "Windows", "browser": "Chrome"},
   "modalities": {
     "audio": {"available": true, "runs": 10, "unique_results": 1, "stable": true},
-    "canvas": {"available": true, "runs": 5, "unique_results": 1, "stable": true},
-    "webgl": {"available": true, "runs": 10, "unique_results": 1, "stable": true}
+    "canvas": {"available": true, "runs": 5, "unique_results": 1, "stable": true}
   }
 }
 ```

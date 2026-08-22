@@ -6,7 +6,6 @@ import webbrowser
 from datetime import datetime
 
 from flask import Flask, jsonify, render_template, request, session
-from Webgl.routes import webgl_bp
 from Audio.routes import audio_bp
 from Canvas.routes import canvas_bp
 from config import (
@@ -23,9 +22,7 @@ from User_Manager.user_manager import (
     register_user,
     authenticate_user,
     store_user_fingerprint,
-    append_triangle_stability,
     get_user_record,
-    set_triangle_baseline,
     append_audio_stability,
     set_audio_baseline,
     append_canvas_stability,
@@ -39,7 +36,6 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
 )
 # Register blueprints
-app.register_blueprint(webgl_bp, url_prefix='/webgl')
 app.register_blueprint(audio_bp, url_prefix='/audio')
 app.register_blueprint(canvas_bp, url_prefix='/canvas')
 
@@ -291,70 +287,6 @@ def capture_fingerprint():
     if ok:
         return jsonify(status="ok")
     return jsonify(status='error', error=msg), 400
-
-
-@app.route('/user/triangle_stability', methods=['POST'])
-def record_triangle_stability():
-    data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip()
-    if not username:
-        return jsonify(status='error', error="Username is required"), 400
-    ok_session, session_msg = _validate_session_owner(username)
-    if not ok_session:
-        return jsonify(status='error', error=session_msg), 409
-
-    user_record = get_user_record(username)
-    if user_record is None:
-        return jsonify(status='error', error="User does not exist"), 404
-
-    runs_payload = data.get("testRuns") or []
-    hashes = [run.get("hash") for run in runs_payload if isinstance(run, dict) and run.get("hash")]
-    if not hashes:
-        return jsonify(status='error', error="Missing valid hash data"), 400
-
-    # Determine baseline: prefer existing user baseline; otherwise use client provided baseline or first hash
-    stored_baseline = (user_record.get("triangle_baseline") or "").strip()
-    client_baseline = (data.get("baselineHash") or data.get("localBaseline") or "").strip()
-    baseline_used = stored_baseline or client_baseline or hashes[0]
-
-    if not stored_baseline:
-        set_triangle_baseline(username, baseline_used)
-
-    mismatches = [idx + 1 for idx, hash_value in enumerate(hashes) if hash_value != baseline_used]
-    all_stable = len(mismatches) == 0
-
-    record = {
-        "captured_at": data.get("timestamp") or time.strftime('%Y-%m-%d %H:%M:%S'),
-        "seed": data.get("seed"),
-        "baseline_hash": baseline_used,
-        "all_stable": all_stable,
-        "unique_hashes": list(dict.fromkeys(hashes)),  # preserve order
-        "runs": runs_payload,
-        "hashes": hashes,
-        "mismatch_runs": mismatches,
-    }
-    if STORE_CLIENT_METADATA:
-        record["client_ip"] = request.remote_addr
-
-    ok, msg = append_triangle_stability(username, record)
-    if ok:
-        alert_message = (
-            f"Rendering stable: all {len(hashes)} hashes matched the baseline {baseline_used}."
-            if all_stable
-            else f"Inconsistencies detected: runs {', '.join(map(str, mismatches))} deviated from baseline {baseline_used}."
-        )
-        response = {
-            "status": "ok",
-            "baselineHash": baseline_used,
-            "allStable": all_stable,
-            "mismatchRuns": mismatches,
-            "totalRuns": len(hashes),
-            "alertMessage": alert_message,
-        }
-        return jsonify(response)
-    return jsonify(status='error', error=msg), 400
-
-
 
 
 @app.route('/user/audio_stability', methods=['POST'])

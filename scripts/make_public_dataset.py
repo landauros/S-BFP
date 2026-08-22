@@ -16,7 +16,6 @@ from pathlib import Path
 MODALITIES = {
     "audio": "audio_stability",
     "canvas": "canvas_stability",
-    "webgl": "triangle_stability",
 }
 
 
