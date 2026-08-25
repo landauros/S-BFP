@@ -1,8 +1,8 @@
 # Public evaluation dataset
 
 `records.jsonl` contains 213 de-identified participant summaries, one JSON object
-per line. It reproduces the retained Audio/Canvas rows of paper Table 2 and all
-of Table 3.
+per line. It reproduces the Audio/Canvas stability values in paper Table 1 and
+the environment distribution in paper Table 2.
 
 Schema:
 

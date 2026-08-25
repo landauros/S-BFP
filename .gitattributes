@@ -5,8 +5,4 @@
 
 # Keep private/raw and development-only material out of release archives.
 users/ export-ignore
-.idea/ export-ignore
-**/__pycache__/ export-ignore
 Canvas/upload/ export-ignore
-.github/ export-ignore
-

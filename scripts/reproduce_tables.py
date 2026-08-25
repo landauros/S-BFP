@@ -76,20 +76,20 @@ def main() -> None:
     environment_rows = [(*key, environments[key]) for key in preferred_order + remaining]
 
     write_csv(
-        args.output_dir / "table2_stability.csv",
+        args.output_dir / "table1_stability.csv",
         ["Modality", "Stable devices", "Devices tested", "Stability rate"],
         stability_rows,
     )
     write_csv(
-        args.output_dir / "table3_environments.csv",
+        args.output_dir / "table2_environments.csv",
         ["Operating system", "Browser", "Devices"],
         environment_rows,
     )
 
-    print("Table 2 — Stability")
+    print("Table 1 - Stability")
     for row in stability_rows:
         print(f"  {row[0]:6s} {row[1]:3d}/{row[2]:3d} ({row[3]})")
-    print(f"Table 3 — Environment total: {sum(environments.values())}")
+    print(f"Table 2 - Environment total: {sum(environments.values())}")
 
     if args.verify_paper:
         expected_environments = {(o, b): n for o, b, n in EXPECTED_ENVIRONMENTS}
@@ -99,11 +99,11 @@ def main() -> None:
             )
         if environments != Counter(expected_environments):
             raise SystemExit(
-                f"Table 3 mismatch: expected {expected_environments}, got {dict(environments)}"
+                f"Table 2 mismatch: expected {expected_environments}, got {dict(environments)}"
             )
         if len(records) != 213:
             raise SystemExit(f"Participant count mismatch: expected 213, got {len(records)}")
-        print("Verified: the retained Audio/Canvas rows and Table 3 match the paper.")
+        print("Verified: Tables 1 and 2 match the paper.")
 
 
 if __name__ == "__main__":

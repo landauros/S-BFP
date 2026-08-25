@@ -20,7 +20,7 @@ MODALITIES = {
 
 
 def classify_environment(user_agent: str) -> tuple[str, str]:
-    """Map a user-agent to the paper's coarse Table 3 categories."""
+    """Map a user-agent to the paper's coarse Table 2 categories."""
 
     if "Windows" in user_agent:
         operating_system = "Windows"
@@ -54,7 +54,7 @@ def classify_environment(user_agent: str) -> tuple[str, str]:
 
 
 def first_run_summary(record: dict, key: str) -> dict[str, int | bool]:
-    """Summarize the first collection session, as used in paper Tables 2/3."""
+    """Summarize the first collection session, as used in paper Tables 1/2."""
 
     history = record.get(key)
     if not isinstance(history, list) or not history:

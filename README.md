@@ -3,125 +3,79 @@
 Research artifact for **From Frozen Pose to Live Dance: Stochastic Browser
 Fingerprinting for Robust Risk-Based Authentication**.
 
-S-BFP turns a static browser fingerprint into a server-controlled,
-challenge-response measurement. A deterministic random bit generator (DRBG)
-derives device-specific rendering primitives from the preliminary fingerprint,
-while a second session-dependent input changes their spatial arrangement. The
-prototype evaluates two browser surfaces:
+S-BFP is a Flask-based research prototype for server-controlled browser
+fingerprinting challenges. It contains:
 
-- **Canvas** — deterministic text content with session-varying positions;
-- **Web Audio** — deterministic oscillator configurations and waveform hashes;
+- a **Canvas** experiment that renders deterministic text at changing positions;
+- a **Web Audio** experiment that renders deterministic oscillator snippets with
+  configurable silent gaps;
+- server-side challenge generation based on HMAC-DRBG;
+- a derived 213-participant dataset and a script that reproduces the paper's
+  stability and environment tables.
 
-The browser renders each challenge repeatedly, hashes the result, and sends the
-stability outcome to the Flask server. The research goal is to make replay of a
-previously captured static fingerprint less useful in risk-based authentication.
+This is an experimental prototype, not a production authentication service.
 
-> This is a research prototype, not a production authentication service. The
-> default secrets are public demonstration values, and the in-process exclusive
-> session lock is intended for a single evaluator.
+## Requirements
 
-## Artifact status
+- Python 3.11 or newer
+- a current desktop browser with Canvas and Web Audio enabled
 
-This repository is organized for USENIX Security '26 artifact evaluation:
+No GPU is required.
 
-- one obvious entry point (this README);
-- pinned Python dependencies and Python 3.11–3.13 support;
-- native Windows and POSIX setup/run scripts;
-- a Docker configuration for a reproducible service environment;
-- automated application tests;
-- a de-identified dataset and scripts that reproduce the retained Audio/Canvas
-  rows of paper Table 2 and all of Table 3;
-- a self-contained artifact appendix and Open Science statement draft;
-- an explicit data/ethics statement and a release-archive verifier.
-
-Final publication still requires the authors to choose licenses and replace the
-access placeholders with the anonymous-review URL and permanent archive DOI.
-
-## Repository map
-
-| Path | Purpose |
-| --- | --- |
-| `app.py` | Flask application, registration/login, test-session coordination, and result collection |
-| `drbg.py` | HMAC-DRBG implementation used for deterministic challenge generation |
-| `Audio/` | Web Audio challenge generator and browser experiment |
-| `Canvas/` | Canvas text generator, renderer upload, cropping, and hashing |
-| `User_Manager/` | Per-user local persistence for newly collected demo results |
-| `data/public/` | De-identified, release-safe evaluation records |
-| `scripts/` | Setup, launch, reproduction, packaging, and verification tools |
-| `tests/` | Server route, consent, authentication, persistence, and modality tests |
-| `artifact/` | Evaluation roadmap and submission text drafts |
-
-## Quick start (native)
-
-Requirements: Python 3.11 or newer and a current desktop browser with Canvas and
-Web Audio enabled. No GPU is required.
+## Install and run
 
 ### Windows PowerShell
 
 ```powershell
-Set-Location D:\a800\S-BFP
-.\scripts\setup.ps1
-.\scripts\run.ps1
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
 ```
 
 ### Linux or macOS
 
 ```sh
-cd /path/to/S-BFP
-sh scripts/setup.sh
-sh scripts/run.sh
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python app.py
 ```
 
-Open <http://127.0.0.1:5001/> if the browser does not open automatically.
-Choose **Register**, enter a pseudonymous username, read and accept the consent
-notice, and save the generated password. After the session is acquired, run the
-Canvas and Audio panels. A successful modality ends with a stability
-summary and stores a local record under `User_Manager/data/users/`.
+Open <http://127.0.0.1:5001/> if it does not open automatically. Register with
+a pseudonymous username, accept the consent notice, save the generated password,
+and then run the Canvas and Audio panels.
 
-## Quick start (Docker)
+New local runs are stored under `User_Manager/data/` by default.
 
-```sh
-docker compose up --build
-```
+## Reproduce the paper tables
 
-Then open <http://127.0.0.1:5001/>. Runtime records are kept in the named
-`s-bfp-data` volume and are not copied into the image.
-
-## Reproduce paper results
-
-The public dataset contains one row per participant with only a pseudonymous
-artifact ID, coarse OS/browser categories, and per-modality run counts,
-uniqueness counts, and stability booleans. It contains no raw rendering hashes,
-images, usernames, IP addresses, full user-agent strings, timestamps, or
-password material.
+The evaluator-facing dataset is `data/public/records.jsonl`. It contains coarse
+environment categories and per-modality stability summaries, without the raw
+rendering values or direct identifiers contained in the source collection.
 
 ```sh
 python scripts/reproduce_tables.py --verify-paper
 ```
 
-Expected output:
+Expected summary:
 
 ```text
+Table 1 - Stability
 Audio  206/206 (100.0%)
 Canvas 196/198 (99.0%)
-Environment total: 213
-Verified: the retained Audio/Canvas rows and Table 3 match the paper.
+Table 2 - Environment total: 213
+Verified: Tables 1 and 2 match the paper.
 ```
 
-CSV versions are written to `results/table2_stability.csv` and
-`results/table3_environments.csv`. The scripts deliberately summarize the first
-collection session for each participant, which is the cohort snapshot used by
-the paper tables.
+CSV outputs are written to `results/table1_stability.csv` and
+`results/table2_environments.csv`. Dataset fields are documented in
+`data/public/README.md`.
 
-The repository maintainer can regenerate the public file from the locally held
-restricted records with:
+Maintainers who hold the source collection can regenerate the derived dataset
+with:
 
 ```sh
 python scripts/make_public_dataset.py --input users --output data/public/records.jsonl
 ```
-
-Evaluators do not need, and should not receive, the restricted `users/` source
-directory.
 
 ## Tests
 
@@ -129,62 +83,45 @@ directory.
 python -m unittest discover -s tests -v
 ```
 
-The suite uses an isolated temporary data directory. It does not read or mutate
-the restricted research records.
+The tests use a temporary runtime directory and do not modify the retained
+research records.
 
 ## Configuration
 
-| Environment variable | Default | Meaning |
+| Environment variable | Default | Purpose |
 | --- | --- | --- |
 | `S_BFP_HOST` | `127.0.0.1` | Bind address |
 | `S_BFP_PORT` | `5001` | HTTP port |
 | `S_BFP_OPEN_BROWSER` | `1` | Open the local URL on startup |
-| `S_BFP_DEBUG` | `0` | Flask debug mode; keep disabled for evaluation |
-| `S_BFP_DATA_DIR` | `User_Manager/data` | Runtime record directory |
-| `S_BFP_SERVER_SECRET` | public demo value | Root key for modality-specific challenge secrets |
-| `S_BFP_SESSION_SECRET` | public demo value | Flask session signing key |
-| `S_BFP_STORE_CLIENT_METADATA` | `0` | Opt-in storage of IP and full user-agent metadata |
-| `S_BFP_STORE_RAW_FINGERPRINT` | `0` | Opt-in storage of raw fingerprint strings/details |
-| `S_BFP_MAX_UPLOAD_MIB` | `12` | Maximum request body size |
+| `S_BFP_DEBUG` | `0` | Flask debug mode |
+| `S_BFP_DATA_DIR` | `User_Manager/data` | New runtime records |
+| `S_BFP_SERVER_SECRET` | demonstration value | Challenge-generation secret |
+| `S_BFP_SESSION_SECRET` | demonstration value | Flask session-signing secret |
+| `S_BFP_STORE_CLIENT_METADATA` | `0` | Store IP/full user-agent when explicitly enabled |
+| `S_BFP_STORE_RAW_FINGERPRINT` | `0` | Store raw fingerprint details when explicitly enabled |
+| `S_BFP_MAX_UPLOAD_MIB` | `12` | Maximum request size |
 
-For any network deployment, set long random server and session secrets, put the
-service behind TLS and an authenticated reverse proxy, and review the local data
-retention policy. The demo defaults intentionally minimize newly collected data.
+For any network deployment, replace the demonstration secrets, enable TLS, and
+review access and retention controls.
 
-## Data and ethics
+## Data handling
 
-The repository's original research collection is restricted because it contains
-fields that can directly or indirectly identify participants. It is excluded
-from Docker images and release archives. See [ETHICS_AND_DATA.md](ETHICS_AND_DATA.md)
-for the field-level policy and [data/public/README.md](data/public/README.md) for
-the released schema.
+- `data/public/records.jsonl` is the derived dataset used by the reproduction
+  script.
+- `users/` contains retained source collection records and is not needed to run
+  the application, tests, or paper-table reproduction.
+- `Canvas/upload/` contains retained Canvas files from the original repository.
+- Only `scripts/make_public_dataset.py` reads `users/`; it does not modify those
+  source files.
 
-The registration UI now requires affirmative consent. New runs do not retain IP
-addresses, full user-agent strings, or raw rendered fingerprints unless the
-maintainer explicitly enables the corresponding environment variables.
+The source records may contain direct or device-identifying fields and must be
+handled according to the study's consent, ethics, access, and retention rules.
 
 ## Known limitations
 
-- Results depend on browser, audio stack, fonts, and hardware. Container
-  execution reproduces the server, not the evaluator's browser rendering stack.
-- The current session coordinator is process-local and supports one active user;
-  it is not appropriate for a multi-worker production deployment.
-- The prototype demonstrates challenge generation and stability collection. It
-  does not implement a complete account risk engine or production login policy.
-
-## Release and citation
-
-Use `python scripts/build_artifact.py` to create a deterministic, sanitized
-archive, then `python scripts/verify_artifact.py dist/s-bfp-usenix-artifact.zip`
-to verify its contents. The archive excludes the restricted source data and all
-runtime records.
-
-Before submission, complete every item in [artifact/RELEASE_CHECKLIST.md](artifact/RELEASE_CHECKLIST.md).
-Citation metadata is intentionally deferred until author identities can be
-disclosed. Add `CITATION.cff` to the camera-ready artifact.
-
-## License
-
-No license was present in the original repository. The authors must explicitly
-select and add licenses before public archival; see [LICENSES.md](LICENSES.md).
-Absence of a license means no reuse permission should be inferred.
+- Results depend on the browser, audio stack, fonts, operating system, and
+  hardware.
+- The session coordinator is process-local and intended for one evaluator at a
+  time.
+- The prototype collects stability measurements; it does not implement a full
+  production risk engine.
